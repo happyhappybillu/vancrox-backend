@@ -18,6 +18,22 @@ async function authMiddleware(req, res, next) {
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
+    // ✅ ADMIN TOKEN SUPPORT (no DB user required)
+    // admin token payload: { role:"admin", email:"..." }
+    if (decoded.role === "admin") {
+      req.user = {
+        role: "admin",
+        email: decoded.email || "",
+        name: "Admin",
+      };
+      return next();
+    }
+
+    // ✅ normal user token payload: { id:"..." }
+    if (!decoded.id) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
     const user = await User.findById(decoded.id).select("-password");
     if (!user) return res.status(401).json({ message: "Unauthorized" });
 
@@ -26,7 +42,7 @@ async function authMiddleware(req, res, next) {
     req.user = user;
     next();
   } catch (e) {
-    console.log("authMiddleware error:", e);
+    console.log("authMiddleware error:", e.message);
     return res.status(401).json({ message: "Unauthorized" });
   }
 }
