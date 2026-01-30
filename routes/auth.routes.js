@@ -15,6 +15,6 @@ router.post("/login", authController.login);
 router.post("/admin/login", authController.adminLogin);
 
 // me
-router.get("/me", authMiddleware, authController.me);
+router.get("/me", protect, authController.me);
 
 module.exports = router;
