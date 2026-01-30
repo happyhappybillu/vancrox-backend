@@ -1,8 +1,8 @@
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 
-// ✅ MAIN AUTH MIDDLEWARE (default export)
-async function authMiddleware(req, res, next) {
+// ✅ protect middleware
+const protect = async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization || "";
     const token = authHeader.startsWith("Bearer ")
@@ -18,22 +18,13 @@ async function authMiddleware(req, res, next) {
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-    // ✅ ADMIN TOKEN SUPPORT (no DB user required)
-    // admin token payload: { role:"admin", email:"..." }
+    // ✅ if admin token
     if (decoded.role === "admin") {
-      req.user = {
-        role: "admin",
-        email: decoded.email || "",
-        name: "Admin",
-      };
+      req.user = { role: "admin", email: decoded.email };
       return next();
     }
 
-    // ✅ normal user token payload: { id:"..." }
-    if (!decoded.id) {
-      return res.status(401).json({ message: "Unauthorized" });
-    }
-
+    // ✅ normal user token
     const user = await User.findById(decoded.id).select("-password");
     if (!user) return res.status(401).json({ message: "Unauthorized" });
 
@@ -42,13 +33,13 @@ async function authMiddleware(req, res, next) {
     req.user = user;
     next();
   } catch (e) {
-    console.log("authMiddleware error:", e.message);
+    console.log("protect error:", e);
     return res.status(401).json({ message: "Unauthorized" });
   }
-}
+};
 
-// ✅ ROLE CHECK
-function requireRole(role) {
+// ✅ ROLE CHECK middleware
+const requireRole = (role) => {
   return (req, res, next) => {
     if (!req.user) return res.status(401).json({ message: "Unauthorized" });
 
@@ -58,7 +49,6 @@ function requireRole(role) {
 
     next();
   };
-}
+};
 
-module.exports = authMiddleware;
-module.exports.requireRole = requireRole;
+module.exports = { protect, requireRole };
