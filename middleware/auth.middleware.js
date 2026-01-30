@@ -1,8 +1,7 @@
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 
-// ✅ protect middleware
-const protect = async (req, res, next) => {
+async function protect(req, res, next) {
   try {
     const authHeader = req.headers.authorization || "";
     const token = authHeader.startsWith("Bearer ")
@@ -18,13 +17,13 @@ const protect = async (req, res, next) => {
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-    // ✅ if admin token
+    // ✅ ADMIN token (no DB user)
     if (decoded.role === "admin") {
-      req.user = { role: "admin", email: decoded.email };
+      req.user = { role: "admin", email: decoded.email || "admin@panel" };
       return next();
     }
 
-    // ✅ normal user token
+    // ✅ Normal user token
     const user = await User.findById(decoded.id).select("-password");
     if (!user) return res.status(401).json({ message: "Unauthorized" });
 
@@ -36,10 +35,10 @@ const protect = async (req, res, next) => {
     console.log("protect error:", e);
     return res.status(401).json({ message: "Unauthorized" });
   }
-};
+}
 
-// ✅ ROLE CHECK middleware
-const requireRole = (role) => {
+// ✅ ROLE CHECK
+function requireRole(role) {
   return (req, res, next) => {
     if (!req.user) return res.status(401).json({ message: "Unauthorized" });
 
@@ -49,6 +48,6 @@ const requireRole = (role) => {
 
     next();
   };
-};
+}
 
 module.exports = { protect, requireRole };
