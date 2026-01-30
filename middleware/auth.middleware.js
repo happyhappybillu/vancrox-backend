@@ -1,13 +1,20 @@
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 
-exports.protect = async (req, res, next) => {
+// ✅ MAIN AUTH MIDDLEWARE (default export)
+async function authMiddleware(req, res, next) {
   try {
-    const token = req.headers.authorization?.startsWith("Bearer")
-      ? req.headers.authorization.split(" ")[1]
+    const authHeader = req.headers.authorization || "";
+    const token = authHeader.startsWith("Bearer ")
+      ? authHeader.split(" ")[1]
       : null;
 
     if (!token) return res.status(401).json({ message: "Unauthorized" });
+
+    if (!process.env.JWT_SECRET) {
+      console.log("JWT_SECRET missing!");
+      return res.status(500).json({ message: "Server error" });
+    }
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
@@ -19,13 +26,23 @@ exports.protect = async (req, res, next) => {
     req.user = user;
     next();
   } catch (e) {
+    console.log("authMiddleware error:", e);
     return res.status(401).json({ message: "Unauthorized" });
   }
-};
+}
 
-exports.requireRole = (role) => (req, res, next) => {
-  if (!req.user || req.user.role !== role) {
-    return res.status(403).json({ message: "Access denied" });
-  }
-  next();
-};
+// ✅ ROLE CHECK
+function requireRole(role) {
+  return (req, res, next) => {
+    if (!req.user) return res.status(401).json({ message: "Unauthorized" });
+
+    if (req.user.role !== role) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+
+    next();
+  };
+}
+
+module.exports = authMiddleware;
+module.exports.requireRole = requireRole;
