@@ -1,6 +1,7 @@
 const router = require("express").Router();
 const trader = require("../controllers/trader.controller");
-const { protect, requireRole } = require("../middleware/auth.middleware");
+const protect = require("../middleware/auth.middleware");
+const { requireRole } = require("../middleware/auth.middleware");
 
 router.get("/profile", protect, requireRole("trader"), trader.profile);
 

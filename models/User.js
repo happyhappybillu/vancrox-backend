@@ -13,6 +13,10 @@ const userSchema = new mongoose.Schema(
     uid: { type: Number, default: 0 }, // Investor UID starts 5000
     tid: { type: Number, default: 0 }, // Trader TID starts 5000
 
+    // ✅ wallet fields
+    balance: { type: Number, default: 0 },       // investor main balance
+    lockedBalance: { type: Number, default: 0 }, // hired amount etc (future use)
+
     profilePhoto: { type: String, default: "" },
 
     isBlocked: { type: Boolean, default: false },
