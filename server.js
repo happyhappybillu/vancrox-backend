@@ -11,11 +11,23 @@ const adminRoutes = require("./routes/admin.routes");
 
 const app = express();
 
-app.use(cors());
+// ✅ CORS MUST be before routes
+app.use(cors({
+  origin: "*",
+  methods: ["GET","POST","PUT","DELETE","OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"]
+}));
+
+// ✅ OPTIONS preflight
+app.options("*", cors());
+
+// ✅ Body parser MUST be before routes
 app.use(express.json({ limit: "10mb" }));
 
+// ✅ test route
 app.get("/", (req, res) => res.send("VANCROX Backend Running ✅"));
 
+// ✅ routes
 app.use("/api/auth", authRoutes);
 app.use("/api/investor", investorRoutes);
 app.use("/api/trader", traderRoutes);
@@ -24,5 +36,5 @@ app.use("/api/admin", adminRoutes);
 const PORT = process.env.PORT || 5000;
 
 connectDB().then(() => {
-  app.listen(PORT, () => console.log("Server running on port", PORT));
+  app.listen(PORT, () => console.log("Server Running on port:", PORT));
 });
