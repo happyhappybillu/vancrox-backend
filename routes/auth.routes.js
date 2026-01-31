@@ -1,21 +1,10 @@
-const express = require("express");
-const router = express.Router();
+const router = require("express").Router();
+const auth = require("../controllers/auth.controller");
+const { protect } = require("../middleware/auth.middleware");
 
-const authController = require("../controllers/auth.controller");
-
-const protect = require("../middleware/auth.middleware"); // ✅ default export
-
-// register
-router.post("/register/investor", authController.registerInvestor);
-router.post("/register/trader", authController.registerTrader);
-
-// login
-router.post("/login", authController.login);
-
-// admin login
-router.post("/admin/login", authController.adminLogin);
-
-// ✅ me
-router.get("/me", protect, authController.me);
+router.post("/register/investor", auth.registerInvestor);
+router.post("/register/trader", auth.registerTrader);
+router.post("/login", auth.login);
+router.get("/me", protect, auth.me);
 
 module.exports = router;
