@@ -1,124 +1,57 @@
+const User = require("../models/User");
 const Transaction = require("../models/Transaction");
 const HireTrade = require("../models/HireTrade");
 const SystemAddress = require("../models/SystemAddress");
-const User = require("../models/User");
 
-// ✅ approve deposit
-exports.approveDeposit = async (req, res) => {
+/* ===========================
+   USER MANAGEMENT (New Features)
+   =========================== */
+
+// ✅ सभी यूज़र्स (Investors/Traders) की लिस्ट देखना
+exports.getAllUsers = async (req, res) => {
   try {
-    const { txId } = req.body;
-
-    const tx = await Transaction.findById(txId);
-    if (!tx) return res.status(404).json({ message: "Invalid" });
-
-    if (tx.type !== "DEPOSIT") return res.status(400).json({ message: "Invalid" });
-
-    if (tx.status !== "PENDING")
-      return res.status(400).json({ message: "Already processed" });
-
-    // ✅ add balance on approve
-    const user = await User.findById(tx.userId);
-    if (!user) return res.status(404).json({ message: "User not found" });
-
-    user.balance = (user.balance || 0) + Number(tx.amount);
-    await user.save();
-
-    tx.status = "SUCCESS";
-    await tx.save();
-
-    res.json({ success: true, message: "Deposit approved ✅", tx });
+    const { role } = req.query; // 'investor' या 'trader' फिल्टर के लिए
+    const filter = role ? { role } : { role: { $ne: "admin" } };
+    
+    const users = await User.find(filter).select("-password").sort({ createdAt: -1 });
+    res.json({ success: true, users });
   } catch (e) {
-    console.log(e);
-    res.status(500).json({ message: "Server error" });
+    res.status(500).json({ success: false, message: "Error fetching users" });
   }
 };
 
-// ✅ reject deposit
-exports.rejectDeposit = async (req, res) => {
+// ✅ यूजर को Block या Unblock करना
+exports.toggleBlock = async (req, res) => {
   try {
-    const { txId } = req.body;
+    const { userId } = req.params;
+    const { block } = req.body; // फ्रंटएंड से true या false आएगा
 
-    const tx = await Transaction.findById(txId);
-    if (!tx) return res.status(404).json({ message: "Invalid" });
-
-    if (tx.type !== "DEPOSIT") return res.status(400).json({ message: "Invalid" });
-
-    if (tx.status !== "PENDING")
-      return res.status(400).json({ message: "Already processed" });
-
-    tx.status = "REJECTED";
-    await tx.save();
-
-    res.json({ success: true, message: "Deposit rejected ❌", tx });
+    const user = await User.findByIdAndUpdate(
+      userId, 
+      { isBlocked: block }, // आपके User.js मॉडल के हिसाब से
+      { new: true }
+    );
+    
+    if (!user) return res.status(404).json({ success: false, message: "User not found" });
+    
+    res.json({ success: true, message: block ? "Blocked ✅" : "Unblocked ✅", user });
   } catch (e) {
-    res.status(500).json({ message: "Server error" });
+    res.status(500).json({ success: false, message: "Server error" });
   }
 };
 
-// ✅ approve withdraw
-exports.approveWithdraw = async (req, res) => {
-  try {
-    const { txId } = req.body;
+/* ===========================
+   TRANSACTIONS & TRADES (Your Logic)
+   =========================== */
 
-    const tx = await Transaction.findById(txId);
-    if (!tx) return res.status(404).json({ message: "Invalid" });
-
-    if (tx.type !== "WITHDRAW") return res.status(400).json({ message: "Invalid" });
-
-    if (tx.status !== "PENDING")
-      return res.status(400).json({ message: "Already processed" });
-
-    // ✅ balance already deducted at request time
-    tx.status = "SUCCESS";
-    await tx.save();
-
-    res.json({ success: true, message: "Withdraw approved ✅", tx });
-  } catch (e) {
-    res.status(500).json({ message: "Server error" });
-  }
-};
-
-// ✅ reject withdraw (refund back)
-exports.rejectWithdraw = async (req, res) => {
-  try {
-    const { txId } = req.body;
-
-    const tx = await Transaction.findById(txId);
-    if (!tx) return res.status(404).json({ message: "Invalid" });
-
-    if (tx.type !== "WITHDRAW") return res.status(400).json({ message: "Invalid" });
-
-    if (tx.status !== "PENDING")
-      return res.status(400).json({ message: "Already processed" });
-
-    // ✅ refund back
-    const user = await User.findById(tx.userId);
-    if (!user) return res.status(404).json({ message: "User not found" });
-
-    user.balance = (user.balance || 0) + Number(tx.amount);
-    await user.save();
-
-    tx.status = "REJECTED";
-    await tx.save();
-
-    res.json({ success: true, message: "Withdraw rejected & refunded ✅", tx });
-  } catch (e) {
-    res.status(500).json({ message: "Server error" });
-  }
-};
-
-// ✅ approve security deposit tx
+// ✅ डिपॉजिट (Security Money) अप्रूव करना
 exports.approveSecurity = async (req, res) => {
   try {
     const { txId } = req.body;
-
     const tx = await Transaction.findById(txId);
-    if (!tx) return res.status(404).json({ message: "Invalid" });
 
-    if (tx.type !== "SECURITY") return res.status(400).json({ message: "Invalid" });
-
-    if (tx.status !== "PENDING")
-      return res.status(400).json({ message: "Already processed" });
+    if (!tx) return res.status(404).json({ message: "Transaction not found" });
+    if (tx.type !== "SECURITY") return res.status(400).json({ message: "Invalid type" });
 
     tx.status = "SUCCESS";
     await tx.save();
@@ -129,41 +62,20 @@ exports.approveSecurity = async (req, res) => {
   }
 };
 
-// ✅ reject security deposit
-exports.rejectSecurity = async (req, res) => {
-  try {
-    const { txId } = req.body;
-
-    const tx = await Transaction.findById(txId);
-    if (!tx) return res.status(404).json({ message: "Invalid" });
-
-    if (tx.type !== "SECURITY") return res.status(400).json({ message: "Invalid" });
-
-    if (tx.status !== "PENDING")
-      return res.status(400).json({ message: "Already processed" });
-
-    tx.status = "REJECTED";
-    await tx.save();
-
-    res.json({ success: true, message: "Security Rejected ❌", tx });
-  } catch (e) {
-    res.status(500).json({ message: "Server error" });
-  }
-};
-
-// ✅ approve profit proof (gives trader earning)
+// ✅ प्रॉफिट प्रूफ अप्रूव करना (ट्रेडर की कमाई क्रेडिट करना)
 exports.approveProfitProof = async (req, res) => {
   try {
     const { hireId } = req.body;
 
     const hire = await HireTrade.findById(hireId);
-    if (!hire) return res.status(404).json({ message: "Invalid" });
+    if (!hire) return res.status(404).json({ message: "Trade not found" });
 
-    if (hire.status !== "PROOF_PENDING") return res.status(400).json({ message: "Invalid" });
+    if (hire.status !== "PROOF_PENDING") return res.status(400).json({ message: "Status not pending" });
 
     hire.status = "PROOF_APPROVED";
     await hire.save();
 
+    // ट्रेडर के लिए नया ट्रांजेक्शन बनाना
     await Transaction.create({
       userId: hire.traderId,
       type: "TRADER_EARNING",
@@ -172,13 +84,16 @@ exports.approveProfitProof = async (req, res) => {
       note: `Trader earning credited. HireId:${hire._id}`,
     });
 
-    res.json({ success: true, message: "Proof approved & trader earning credited ✅" });
+    res.json({ success: true, message: "Proof approved & Earning credited ✅" });
   } catch (e) {
     res.status(500).json({ message: "Server error" });
   }
 };
 
-// ✅ Address change feature (ERC/TRC/BEP)
+/* ===========================
+   SYSTEM SETTINGS (Addresses)
+   =========================== */
+
 exports.updateAddresses = async (req, res) => {
   try {
     const { erc20, trc20, bep20 } = req.body;
@@ -191,7 +106,7 @@ exports.updateAddresses = async (req, res) => {
     doc.bep20 = bep20 || doc.bep20;
     await doc.save();
 
-    res.json({ success: true, message: "Saved ✅", doc });
+    res.json({ success: true, message: "Addresses Saved ✅", doc });
   } catch (e) {
     res.status(500).json({ message: "Server error" });
   }
@@ -200,7 +115,7 @@ exports.updateAddresses = async (req, res) => {
 exports.getAddresses = async (req, res) => {
   try {
     let doc = await SystemAddress.findOne();
-    if (!doc) doc = await SystemAddress.create({ erc20: "", trc20: "", bep20: "" });
+    if (!doc) doc = await SystemAddress.create({ erc20: "Not Set", trc20: "Not Set", bep20: "Not Set" });
 
     res.json({ success: true, doc });
   } catch (e) {
