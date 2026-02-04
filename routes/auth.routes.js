@@ -11,10 +11,10 @@ router.post("/register/trader", authController.registerTrader);
 // login
 router.post("/login", authController.login);
 
-// admin login
+// admin login (separate)
 router.post("/admin/login", authController.adminLogin);
 
-// me
+// profile
 router.get("/me", protect, authController.me);
 
 module.exports = router;
