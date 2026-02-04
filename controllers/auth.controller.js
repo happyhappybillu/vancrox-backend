@@ -150,8 +150,8 @@ exports.adminLogin = async (req, res) => {
     const masterPass = (process.env.ADMIN_PASS || "").trim();
 
     // backup support (optional)
-    const legacyAdmin = (process.env.ADMIN || "").trim();
-    const legacyPass = (process.env.password || "").trim();
+    const legacyAdmin = (process.env.ADMIN_EMAIL || "").trim();
+    const legacyPass = (process.env.ADMIN_PASS || "").trim();
 
     const validEmail = emailOrMobile;
 
