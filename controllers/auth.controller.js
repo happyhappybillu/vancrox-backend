@@ -156,8 +156,8 @@ exports.adminLogin = async (req, res) => {
       return res.status(400).json({ success: false, message: "Missing credentials" });
     }
 
-    const masterAdmin = process.env.ADMIN;
-    const masterPass = process.env.password;
+   const masterAdmin = (process.env.ADMIN_EMAIL || "").trim();
+   const masterPass  = (process.env.ADMIN_PASS  || "").trim();
 
     if (
       masterAdmin &&
