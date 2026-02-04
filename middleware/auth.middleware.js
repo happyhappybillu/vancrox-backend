@@ -1,54 +1,51 @@
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 
-// हमने यहाँ एक 'Default' सीक्रेट की डाल दी है 
-// ताकि .env फाइल न होने पर भी आपका ऐप क्रैश न हो।
 const JWT_SECRET = process.env.JWT_SECRET || "vancrox_secret_key_9988";
 
 exports.protect = async (req, res, next) => {
   try {
-    let token;
+    const auth = req.headers.authorization;
 
-    // चेक करें कि क्या हेडर में 'Bearer' टोकन है
-    if (req.headers.authorization && req.headers.authorization.startsWith("Bearer")) {
-      token = req.headers.authorization.split(" ")[1];
+    if (!auth || !auth.startsWith("Bearer ")) {
+      return res.status(401).json({ success: false, message: "Not authorized" });
     }
 
-    if (!token) {
-      return res.status(401).json({ success: false, message: "Login required" });
-    }
-
-    // टोकन को वेरीफाई करें
+    const token = auth.split(" ")[1];
     const decoded = jwt.verify(token, JWT_SECRET);
 
-    // यूजर को डेटाबेस में ढूंढें
+    // master admin support
+    if (decoded.id === "master_admin") {
+      req.user = { id: "master_admin", role: "admin", name: "Main Admin" };
+      return next();
+    }
+
     const user = await User.findById(decoded.id).select("-password");
-    
-    if (!user) {
-      return res.status(401).json({ success: false, message: "User not found" });
-    }
+    if (!user) return res.status(401).json({ success: false, message: "User not found" });
 
-    // अगर यूजर ब्लॉक है (Optional check)
-    if (user.isBlocked) {
-      return res.status(403).json({ success: false, message: "Your account is blocked" });
-    }
-
-    // यूजर का डेटा रिक्वेस्ट में सेव करें
     req.user = user;
     next();
   } catch (e) {
-    console.error("Auth Middleware Error:", e.message);
-    return res.status(401).json({ success: false, message: "Invalid or expired token" });
+    return res.status(401).json({ success: false, message: "Invalid token" });
   }
 };
 
-// रोल चेक करने का फंक्शन (जैसे: सिर्फ investor ही एक्सेस कर सके)
-exports.requireRole = (role) => (req, res, next) => {
-  if (!req.user || req.user.role !== role) {
-    return res.status(403).json({ 
-      success: false, 
-      message: `Access denied: Only ${role} allowed` 
-    });
-  }
-  next();
+// ✅ MUST return a function (middleware)
+exports.requireRole = (role) => {
+  return (req, res, next) => {
+    try {
+      if (!req.user) return res.status(401).json({ success: false, message: "Not authorized" });
+
+      // master admin always admin
+      if (req.user.id === "master_admin") return next();
+
+      if (req.user.role !== role) {
+        return res.status(403).json({ success: false, message: "Forbidden" });
+      }
+
+      next();
+    } catch (e) {
+      return res.status(403).json({ success: false, message: "Forbidden" });
+    }
+  };
 };
