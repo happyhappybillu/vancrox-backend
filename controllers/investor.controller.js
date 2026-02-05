@@ -3,11 +3,12 @@ const HireTrade = require("../models/HireTrade");
 const Transaction = require("../models/Transaction");
 const User = require("../models/User");
 
+// profile
 exports.profile = async (req, res) => {
   res.json({ success: true, investor: req.user });
 };
 
-// ✅ list active trader ads
+// ✅ Top Traders (active ads only)
 exports.topTraders = async (req, res) => {
   try {
     const ads = await TraderAd.find({ isActive: true })
@@ -20,44 +21,66 @@ exports.topTraders = async (req, res) => {
   }
 };
 
-// ✅ hire trader
+// ✅ Hire Trader (FIXED FLOW)
 exports.hireTrader = async (req, res) => {
   try {
-    const { traderAdId, amount } = req.body;
+    const { traderAdId } = req.body;
 
-    if (!traderAdId || !amount || Number(amount) <= 0) return res.status(400).json({ message: "Invalid" });
-
-    const ad = await TraderAd.findById(traderAdId);
-    if (!ad || !ad.isActive) return res.status(404).json({ message: "Invalid" });
-
-    if (Number(amount) < ad.minAmount || Number(amount) > ad.maxAmount) {
-      return res.status(400).json({ message: "Invalid" });
+    if (!traderAdId) {
+      return res.status(400).json({ message: "Invalid request" });
     }
 
+    const ad = await TraderAd.findById(traderAdId);
+    if (!ad || !ad.isActive) {
+      return res.status(404).json({ message: "Trader ad not available" });
+    }
+
+    const investor = await User.findById(req.user._id);
+
+    // ❗ low balance rule
+    if (investor.balance < ad.tradeAmount) {
+      return res.status(400).json({ message: "Low balance" });
+    }
+
+    // 🔒 deduct balance
+    investor.balance -= ad.tradeAmount;
+    await investor.save();
+
+    // create hire trade
     const hire = await HireTrade.create({
-      investorId: req.user._id,
+      investorId: investor._id,
       traderId: ad.traderId,
       traderAdId: ad._id,
-      amount: Number(amount),
-      status: "HIRED",
+      amount: ad.tradeAmount,
+      status: "ONGOING",
       profitPercent: ad.profitPercent,
     });
 
+    // ❌ remove ad from listing
+    ad.isActive = false;
+    await ad.save();
+
+    // transaction record
     await Transaction.create({
-      userId: req.user._id,
-      type: "HIRE",
-      amount: Number(amount),
-      status: "SUCCESS",
-      note: `Hire trader (locked). HireId:${hire._id}`,
+      userId: investor._id,
+      type: "TRADE",
+      amount: ad.tradeAmount,
+      status: "LOCKED",
+      note: `Trade${ad.tradeAmount}$ started`,
     });
 
-    res.json({ success: true, message: "Trader hired successfully", hire });
+    res.json({
+      success: true,
+      message: "Trader hired successfully",
+      hire,
+    });
   } catch (e) {
     console.log(e);
     res.status(500).json({ message: "Server error" });
   }
 };
 
+// ✅ My Traders (ongoing + completed)
 exports.myTraders = async (req, res) => {
   try {
     const list = await HireTrade.find({ investorId: req.user._id })
@@ -70,9 +93,14 @@ exports.myTraders = async (req, res) => {
   }
 };
 
+// ✅ History (ONLY allowed types)
 exports.history = async (req, res) => {
   try {
-    const tx = await Transaction.find({ userId: req.user._id }).sort({ createdAt: -1 });
+    const tx = await Transaction.find({
+      userId: req.user._id,
+      type: { $in: ["DEPOSIT", "WITHDRAW", "PROFIT"] },
+    }).sort({ createdAt: -1 });
+
     res.json({ success: true, tx });
   } catch (e) {
     res.status(500).json({ message: "Server error" });
