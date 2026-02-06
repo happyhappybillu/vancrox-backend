@@ -2,44 +2,90 @@ const mongoose = require("mongoose");
 
 const userSchema = new mongoose.Schema(
   {
-    // यूजर का रोल: investor, trader या admin
-    role: { 
-      type: String, 
-      enum: ["investor", "trader", "admin"], 
-      required: true 
+    // role: investor / trader / system
+    role: {
+      type: String,
+      enum: ["investor", "trader", "system"],
+      required: true,
+      index: true,
     },
 
-    name: { type: String, required: true },
-
-    // email और mobile को unique रखा है ताकि एक ही ईमेल से दो अकाउंट न बनें
-    // sparse: true का मतलब है कि अगर कोई ईमेल नहीं देता, तो भी एरर न आए
-    email: { 
-      type: String, 
-      unique: true, 
-      sparse: true, 
-      default: null 
-    },
-    
-    mobile: { 
-      type: String, 
-      unique: true, 
-      sparse: true, 
-      default: null 
+    name: {
+      type: String,
+      required: true,
+      trim: true,
     },
 
-    password: { type: String, required: true },
+    email: {
+      type: String,
+      unique: true,
+      sparse: true,
+      default: null,
+      lowercase: true,
+      trim: true,
+    },
 
-    // UID और TID को 0 के बजाय null रख रहे हैं ताकि ढूंढने में आसानी हो
-    uid: { type: Number, default: null, index: true }, 
-    tid: { type: Number, default: null, index: true }, 
+    mobile: {
+      type: String,
+      unique: true,
+      sparse: true,
+      default: null,
+      trim: true,
+    },
 
-    profilePhoto: { type: String, default: "" },
+    password: {
+      type: String,
+      required: true,
+    },
 
-    // यूजर को ब्लॉक करने की सुविधा
-    isBlocked: { type: Boolean, default: false },
+    // Investor ID
+    uid: {
+      type: Number,
+      default: null,
+      index: true,
+    },
+
+    // Trader ID
+    tid: {
+      type: Number,
+      default: null,
+      index: true,
+    },
+
+    profilePhoto: {
+      type: String,
+      default: "",
+    },
+
+    // 🔒 Block / Unblock (System panel control)
+    isBlocked: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+
+    // 🛂 Trader verification status (VERY IMPORTANT)
+    traderVerification: {
+      type: String,
+      enum: ["NOT_UPLOADED", "PENDING", "APPROVED", "REJECTED"],
+      default: "NOT_UPLOADED",
+      index: true,
+    },
+
+    // 📂 Trader 2-year history upload (images / pdf base64)
+    tradingHistoryProof: {
+      type: [String], // multiple images allowed
+      default: [],
+    },
+
+    // 🔐 Account status (extra safety)
+    isActive: {
+      type: Boolean,
+      default: true,
+    },
   },
-  { 
-    timestamps: true // इससे खुद पता चलेगा कि यूजर कब रजिस्टर हुआ
+  {
+    timestamps: true,
   }
 );
 

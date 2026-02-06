@@ -4,17 +4,23 @@ const router = express.Router();
 const authController = require("../controllers/auth.controller");
 const { protect } = require("../middleware/auth.middleware");
 
-// register
+/* =====================
+   AUTH ROUTES
+===================== */
+
+// investor register
 router.post("/register/investor", authController.registerInvestor);
+
+// trader register
 router.post("/register/trader", authController.registerTrader);
 
-// login
+// common login (investor / trader)
 router.post("/login", authController.login);
 
 // admin login (separate)
 router.post("/admin/login", authController.adminLogin);
 
-// profile
+// get logged-in user profile
 router.get("/me", protect, authController.me);
 
 module.exports = router;

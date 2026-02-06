@@ -4,25 +4,47 @@ const cors = require("cors");
 
 const connectDB = require("./config/db");
 
+// routes
 const authRoutes = require("./routes/auth.routes");
 const investorRoutes = require("./routes/investor.routes");
 const traderRoutes = require("./routes/trader.routes");
 const adminRoutes = require("./routes/admin.routes");
+const notificationRoutes = require("./routes/notification.routes");
 
 const app = express();
 
-app.use(cors());
+/* =====================
+   MIDDLEWARES
+===================== */
+app.use(cors({
+  origin: "*",
+  credentials: true
+}));
 app.use(express.json({ limit: "10mb" }));
+app.use(express.urlencoded({ extended: true }));
 
-app.get("/", (req, res) => res.send("VANCROX Backend Running ✅"));
+/* =====================
+   HEALTH CHECK
+===================== */
+app.get("/", (req, res) => {
+  res.status(200).json({
+    success: true,
+    message: "VANCROX Backend Running ✅"
+  });
+});
 
+/* =====================
+   API ROUTES
+===================== */
 app.use("/api/auth", authRoutes);
 app.use("/api/investor", investorRoutes);
 app.use("/api/trader", traderRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/notifications", notificationRoutes);
 
-const PORT = process.env.PORT || 5000;
-
-connectDB().then(() => {
-  app.listen(PORT, () => console.log("Server running on port", PORT));
-});
+/* =====================
+   GLOBAL ERROR HANDLER
+===================== */
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(err.statusCode || 500).json({
