@@ -4,47 +4,50 @@ const cors = require("cors");
 
 const connectDB = require("./config/db");
 
-// routes
+const notificationRoutes = require("./routes/notification.routes");
 const authRoutes = require("./routes/auth.routes");
 const investorRoutes = require("./routes/investor.routes");
 const traderRoutes = require("./routes/trader.routes");
 const adminRoutes = require("./routes/admin.routes");
-const notificationRoutes = require("./routes/notification.routes");
 
 const app = express();
 
-/* =====================
-   MIDDLEWARES
-===================== */
-app.use(cors({
-  origin: "*",
-  credentials: true
-}));
+// middlewares
+app.use(cors());
 app.use(express.json({ limit: "10mb" }));
-app.use(express.urlencoded({ extended: true }));
 
-/* =====================
-   HEALTH CHECK
-===================== */
+// test route
 app.get("/", (req, res) => {
-  res.status(200).json({
-    success: true,
-    message: "VANCROX Backend Running ✅"
-  });
+  res.send("VANCROX Backend Running ✅");
 });
 
-/* =====================
-   API ROUTES
-===================== */
+// routes
+app.use("/api", notificationRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/investor", investorRoutes);
 app.use("/api/trader", traderRoutes);
 app.use("/api/admin", adminRoutes);
-app.use("/api/notifications", notificationRoutes);
 
-/* =====================
-   GLOBAL ERROR HANDLER
-===================== */
+// ❗ GLOBAL ERROR HANDLER (IMPORTANT)
 app.use((err, req, res, next) => {
-  console.error(err.stack);
+  console.error("🔥 Error:", err.message);
+
   res.status(err.statusCode || 500).json({
+    success: false,
+    message: err.message || "Internal Server Error",
+  });
+});
+
+const PORT = process.env.PORT || 5000;
+
+// start server after DB connect
+connectDB()
+  .then(() => {
+    app.listen(PORT, () => {
+      console.log("🚀 Server running on port", PORT);
+    });
+  })
+  .catch((err) => {
+    console.error("❌ DB connection failed:", err.message);
+    process.exit(1);
+  });
