@@ -1,17 +1,21 @@
-const express = require("express");
-const router = express.Router();
+const router = require("express").Router();
+const notification = require("../controllers/notification.controller");
+const { protect, requireRole } = require("../middleware/auth.middleware");
 
-const {
-  createNotification,
-  getInvestorNotifications,
-} = require("../controllers/notification.controller");
+// admin create notification
+router.post(
+  "/create",
+  protect,
+  requireRole("admin"),
+  notification.createNotification
+);
 
-const { protect, adminOnly } = require("../middleware/auth.middleware");
-
-// admin
-router.post("/admin/notification", protect, adminOnly, createNotification);
-
-// investor
-router.get("/investor/notifications", protect, getInvestorNotifications);
+// investor notifications
+router.get(
+  "/investor",
+  protect,
+  requireRole("investor"),
+  notification.getInvestorNotifications
+);
 
 module.exports = router;
