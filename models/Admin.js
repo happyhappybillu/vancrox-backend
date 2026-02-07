@@ -1,11 +1,81 @@
 const mongoose = require("mongoose");
 
-const AdminSchema = new mongoose.Schema(
+const adminSchema = new mongoose.Schema(
   {
-    email: { type: String, unique: true },
-    password: { type: String, required: true },
+    /* =========================
+       BASIC INFO
+    ========================= */
+    name: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+
+    username: {
+      type: String,
+      required: true,
+      unique: true,
+      lowercase: true,
+      index: true,
+    },
+
+    email: {
+      type: String,
+      required: true,
+      unique: true,
+      lowercase: true,
+      index: true,
+    },
+
+    password: {
+      type: String,
+      required: true,
+    },
+
+    /* =========================
+       ROLE & PERMISSIONS
+    ========================= */
+    role: {
+      type: String,
+      enum: ["system", "manager", "support"],
+      default: "system",
+      index: true,
+    },
+
+    /* =========================
+       ACCOUNT STATUS
+    ========================= */
+    isActive: {
+      type: Boolean,
+      default: true,
+    },
+
+    isBlocked: {
+      type: Boolean,
+      default: false,
+    },
+
+    /* =========================
+       SECURITY
+    ========================= */
+    lastLoginAt: {
+      type: Date,
+      default: null,
+    },
+
+    lastLoginIp: {
+      type: String,
+      default: "",
+    },
+
+    passwordChangedAt: {
+      type: Date,
+      default: null,
+    },
   },
-  { timestamps: true }
+  {
+    timestamps: true,
+  }
 );
 
-module.exports = mongoose.model("Admin", AdminSchema);
+module.exports = mongoose.model("Admin", adminSchema);

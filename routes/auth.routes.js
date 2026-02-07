@@ -1,26 +1,36 @@
 const express = require("express");
 const router = express.Router();
 
-const authController = require("../controllers/auth.controller");
+const auth = require("../controllers/auth.controller");
 const { protect } = require("../middleware/auth.middleware");
 
-/* =====================
-   AUTH ROUTES
-===================== */
+/* ===========================
+   REGISTER ROUTES
+=========================== */
 
-// investor register
-router.post("/register/investor", authController.registerInvestor);
+// Investor register
+router.post("/register/investor", auth.registerInvestor);
 
-// trader register
-router.post("/register/trader", authController.registerTrader);
+// Trader register
+router.post("/register/trader", auth.registerTrader);
 
-// common login (investor / trader)
-router.post("/login", authController.login);
 
-// admin login (separate)
-router.post("/admin/login", authController.adminLogin);
+/* ===========================
+   LOGIN ROUTE
+=========================== */
 
-// get logged-in user profile
-router.get("/me", protect, authController.me);
+// Common login (investor / trader / admin)
+router.post("/login", auth.login);
+
+
+/* ===========================
+   AUTHENTICATED ROUTES
+=========================== */
+
+// Get logged-in user profile
+router.get("/me", protect, auth.me);
+
+// Change password (investor / trader / admin)
+router.post("/change-password", protect, auth.changePassword);
 
 module.exports = router;

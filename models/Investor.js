@@ -1,20 +1,85 @@
-const jwt = require("jsonwebtoken");
+const mongoose = require("mongoose");
 
-exports.protect = (req, res, next) => {
-  try {
-    const auth = req.headers.authorization;
+const investorSchema = new mongoose.Schema(
+  {
+    /* =========================
+       BASIC IDENTITY
+    ========================= */
+    userId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+      unique: true,
+      index: true,
+    },
 
-    if (!auth || !auth.startsWith("Bearer ")) {
-      return res.status(401).json({ message: "Unauthorized" });
-    }
+    uid: {
+      type: Number,
+      required: true,
+      unique: true,
+      index: true,
+    },
 
-    const token = auth.split(" ")[1];
+    /* =========================
+       ACCOUNT STATUS
+    ========================= */
+    isBlocked: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = decoded; // { id, role }
+    /* =========================
+       BALANCE LOGIC
+       (NO manual edit by admin)
+    ========================= */
+    balance: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
 
-    next();
-  } catch (err) {
-    return res.status(401).json({ message: "Invalid token" });
+    lockedBalance: {
+      type: Number,
+      default: 0,
+      min: 0,
+      // hire trader ke time yahan lock hota hai
+    },
+
+    /* =========================
+       INVESTMENT STATS
+    ========================= */
+    totalDeposit: {
+      type: Number,
+      default: 0,
+    },
+
+    totalWithdraw: {
+      type: Number,
+      default: 0,
+    },
+
+    totalProfit: {
+      type: Number,
+      default: 0,
+    },
+
+    totalLoss: {
+      type: Number,
+      default: 0,
+    },
+
+    /* =========================
+       SECURITY / META
+    ========================= */
+    lastActivityAt: {
+      type: Date,
+      default: null,
+    },
+  },
+  {
+    timestamps: true,
   }
-};
+);
+
+module.exports = mongoose.model("Investor", investorSchema);

@@ -3,144 +3,82 @@ const HireTrade = require("../models/HireTrade");
 const Transaction = require("../models/Transaction");
 const User = require("../models/User");
 
-/* =========================
+/* ======================================================
    HELPERS
-========================= */
+====================================================== */
 
-async function securityBalance(userId) {
+// trader security balance
+async function getSecurityBalance(traderId) {
   const tx = await Transaction.aggregate([
-    { $match: { userId, type: "SECURITY", status: "SUCCESS" } },
-    { $group: { _id: null, total: { $sum: "$amount" } } }
+    { $match: { userId: traderId, type: "SECURITY", status: "SUCCESS" } },
+    { $group: { _id: null, total: { $sum: "$amount" } } },
   ]);
   return tx?.[0]?.total || 0;
 }
 
-function requireHistoryApproved(user) {
-  if (user.tradingHistoryStatus !== "APPROVED") {
-    return {
-      ok: false,
-      message: "Trading history not approved yet"
-    };
+// check trader unlocked
+async function ensureUnlocked(trader) {
+  if (!trader.isHistoryApproved) {
+    return { ok: false, message: "Trading history not approved" };
   }
-  return { ok: true };
+  const sec = await getSecurityBalance(trader._id);
+  if (sec < 100) {
+    return { ok: false, message: "Minimum 100 USDT security required" };
+  }
+  return { ok: true, security: sec };
 }
 
-async function requireUnlocked(user) {
-  const historyCheck = requireHistoryApproved(user);
-  if (!historyCheck.ok) return historyCheck;
-
-  const bal = await securityBalance(user._id);
-  if (bal < 100) {
-    return {
-      ok: false,
-      message: "Please deposit minimum 100 USDT security money to unlock all features"
-    };
-  }
-  return { ok: true, bal };
-}
-
-/* =========================
+/* ======================================================
    PROFILE
-========================= */
-
+====================================================== */
 exports.profile = async (req, res) => {
   res.json({ success: true, trader: req.user });
 };
 
-/* =========================
-   1️⃣ TRADING HISTORY
-========================= */
-
-exports.uploadTradingHistory = async (req, res) => {
-  try {
-    const { images } = req.body;
-
-    if (!images || images.length === 0) {
-      return res.status(400).json({ message: "Upload trading history images" });
-    }
-
-    req.user.tradingHistoryImages = images;
-    req.user.tradingHistoryStatus = "PENDING";
-    await req.user.save();
-
-    res.json({
-      success: true,
-      message: "Trading history submitted. Status: Pending review by system team"
-    });
-  } catch (e) {
-    res.status(500).json({ message: "Server error" });
-  }
-};
-
-/* =========================
-   2️⃣ SECURITY MONEY
-========================= */
-
+/* ======================================================
+   SECURITY DEPOSIT
+====================================================== */
 exports.securityDeposit = async (req, res) => {
   try {
-    const historyCheck = requireHistoryApproved(req.user);
-    if (!historyCheck.ok) {
-      return res.status(403).json({ message: historyCheck.message });
-    }
-
-    const { amount } = req.body;
-    if (!amount || Number(amount) < 100) {
-      return res.status(400).json({ message: "Minimum security deposit is 100 USDT" });
+    const { amount, proof } = req.body;
+    if (!amount || amount < 100) {
+      return res.status(400).json({ message: "Minimum 100 required" });
     }
 
     const tx = await Transaction.create({
       userId: req.user._id,
       type: "SECURITY",
-      amount: Number(amount),
+      amount,
+      proof: proof || "",
       status: "PENDING",
-      note: "Security money deposit request"
+      note: "Security deposit request",
     });
 
-    res.json({
-      success: true,
-      message: "Security deposit submitted. Pending verification",
-      tx
-    });
+    res.json({ success: true, message: "Security request sent", tx });
   } catch (e) {
     res.status(500).json({ message: "Server error" });
   }
 };
 
-/* =========================
-   3️⃣ CREATE AD (RUN AD FREE)
-========================= */
-
+/* ======================================================
+   CREATE AD (LIMITED BY SECURITY)
+====================================================== */
 exports.createAd = async (req, res) => {
   try {
-    const unlock = await requireUnlocked(req.user);
-    if (!unlock.ok) {
-      return res.status(403).json({ message: unlock.message });
-    }
-
-    const level = req.user.level || 1;
-    const activeAds = await TraderAd.countDocuments({
-      traderId: req.user._id,
-      isActive: true
-    });
-
-    if (activeAds >= level) {
-      return res.status(403).json({
-        message: `Your level allows only ${level} active ads`
-      });
-    }
+    const check = await ensureUnlocked(req.user);
+    if (!check.ok) return res.status(403).json({ message: check.message });
 
     const { profitPercent } = req.body;
-    if (!profitPercent || Number(profitPercent) <= 0) {
-      return res.status(400).json({ message: "Invalid return percentage" });
-    }
-
-    const secBal = unlock.bal;
+    const security = check.security;
 
     const ad = await TraderAd.create({
       traderId: req.user._id,
-      amount: secBal,
-      profitPercent: Number(profitPercent),
-      isActive: true
+      title: "Trader Ad",
+      description: "",
+      minAmount: security,
+      maxAmount: security,
+      profitPercent: Number(profitPercent || 25),
+      isActive: true,
     });
 
     res.json({ success: true, ad });
@@ -149,71 +87,48 @@ exports.createAd = async (req, res) => {
   }
 };
 
-/* =========================
-   4️⃣ MY ADS
-========================= */
-
+/* ======================================================
+   MY ADS
+====================================================== */
 exports.myAds = async (req, res) => {
-  try {
-    const unlock = await requireUnlocked(req.user);
-    if (!unlock.ok) {
-      return res.status(403).json({ message: unlock.message });
-    }
-
-    const ads = await TraderAd.find({ traderId: req.user._id })
-      .sort({ createdAt: -1 });
-
-    res.json({ success: true, ads });
-  } catch (e) {
-    res.status(500).json({ message: "Server error" });
-  }
+  const ads = await TraderAd.find({ traderId: req.user._id }).sort({ createdAt: -1 });
+  res.json({ success: true, ads });
 };
 
-/* =========================
-   5️⃣ INVENTORY
-========================= */
-
+/* ======================================================
+   INVENTORY (WAITING / ACTIVE / PROFIT / LOSS)
+====================================================== */
 exports.inventory = async (req, res) => {
-  try {
-    const unlock = await requireUnlocked(req.user);
-    if (!unlock.ok) {
-      return res.status(403).json({ message: unlock.message });
-    }
+  const list = await HireTrade.find({ traderId: req.user._id })
+    .populate("investorId", "name uid")
+    .sort({ createdAt: -1 });
 
-    const items = await HireTrade.find({ traderId: req.user._id })
-      .populate("investorId", "name uid")
-      .sort({ createdAt: -1 });
-
-    res.json({ success: true, items });
-  } catch (e) {
-    res.status(500).json({ message: "Server error" });
-  }
+  res.json({ success: true, list });
 };
 
-/* =========================
-   6️⃣ CONFIRM / REJECT (NEW)
-========================= */
-
+/* ======================================================
+   CONFIRM / REJECT HIRE (MOST IMPORTANT)
+====================================================== */
 exports.confirmHire = async (req, res) => {
   try {
     const { hireId } = req.body;
+
     const hire = await HireTrade.findOne({
       _id: hireId,
       traderId: req.user._id,
-      status: "WAITING_TRADER_CONFIRMATION"
     });
 
-    if (!hire) {
-      return res.status(404).json({ message: "Invalid request" });
+    if (!hire) return res.status(404).json({ message: "Invalid hire" });
+    if (hire.status !== "WAITING_TRADER_CONFIRMATION") {
+      return res.status(400).json({ message: "Already processed" });
     }
 
-    hire.status = "HIRED";
+    hire.status = "ACTIVE";
+    hire.traderConfirmation = "CONFIRMED";
+    hire.traderConfirmedAt = new Date();
     await hire.save();
 
-    res.json({
-      success: true,
-      message: "Trade confirmed. Amount credited to your wallet"
-    });
+    res.json({ success: true, message: "Trade confirmed" });
   } catch (e) {
     res.status(500).json({ message: "Server error" });
   }
@@ -222,77 +137,75 @@ exports.confirmHire = async (req, res) => {
 exports.rejectHire = async (req, res) => {
   try {
     const { hireId } = req.body;
+
     const hire = await HireTrade.findOne({
       _id: hireId,
       traderId: req.user._id,
-      status: "WAITING_TRADER_CONFIRMATION"
     });
 
-    if (!hire) {
-      return res.status(404).json({ message: "Invalid request" });
+    if (!hire) return res.status(404).json({ message: "Invalid hire" });
+    if (hire.status !== "WAITING_TRADER_CONFIRMATION") {
+      return res.status(400).json({ message: "Already processed" });
     }
 
-    hire.status = "REJECTED";
+    hire.status = "REJECTED_BY_TRADER";
+    hire.traderConfirmation = "REJECTED";
+    hire.closedAt = new Date();
     await hire.save();
 
+    // refund investor instantly
     await Transaction.create({
       userId: hire.investorId,
       type: "REFUND",
       amount: hire.amount,
       status: "SUCCESS",
-      note: `Trade rejected by trader. HireId:${hire._id}`
+      note: `Trade rejected by trader. HireId:${hire._id}`,
     });
 
-    res.json({
-      success: true,
-      message: "Trade rejected. Investor refunded instantly"
-    });
+    res.json({ success: true, message: "Trade rejected & refunded" });
   } catch (e) {
     res.status(500).json({ message: "Server error" });
   }
 };
 
-/* =========================
-   7️⃣ PROFIT / LOSS
-========================= */
-
+/* ======================================================
+   PROFIT / LOSS
+====================================================== */
 exports.selectLoss = async (req, res) => {
   try {
     const { hireId } = req.body;
-    const hire = await HireTrade.findOne({
-      _id: hireId,
-      traderId: req.user._id,
-      status: "HIRED"
-    });
 
-    if (!hire) return res.status(404).json({ message: "Invalid trade" });
+    const hire = await HireTrade.findOne({ _id: hireId, traderId: req.user._id });
+    if (!hire || hire.status !== "ACTIVE") {
+      return res.status(400).json({ message: "Invalid trade" });
+    }
 
-    hire.status = "LOSS";
+    hire.status = "LOSS_SELECTED";
+    hire.closedAt = new Date();
     await hire.save();
 
+    // refund investor
     await Transaction.create({
       userId: hire.investorId,
       type: "REFUND",
       amount: hire.amount,
       status: "SUCCESS",
-      note: `Loss refund. HireId:${hire._id}`
+      note: `Loss refund. HireId:${hire._id}`,
     });
 
-    const secBal = await securityBalance(req.user._id);
-    if (secBal > 0) {
+    // reset trader security
+    const sec = await getSecurityBalance(req.user._id);
+    if (sec > 0) {
       await Transaction.create({
         userId: req.user._id,
         type: "SECURITY",
-        amount: -secBal,
+        amount: -sec,
         status: "SUCCESS",
-        note: "Security forfeited due to loss"
+        note: "Security forfeited (loss)",
       });
     }
 
-    res.json({
-      success: true,
-      message: "Loss selected. Investor refunded. Security reset to 0"
-    });
+    res.json({ success: true, message: "Loss processed" });
   } catch (e) {
     res.status(500).json({ message: "Server error" });
   }
@@ -300,65 +213,56 @@ exports.selectLoss = async (req, res) => {
 
 exports.selectProfit = async (req, res) => {
   try {
-    const { hireId } = req.body;
-    const hire = await HireTrade.findOne({
-      _id: hireId,
-      traderId: req.user._id,
-      status: "HIRED"
-    });
+    const { hireId, profitPercent } = req.body;
 
-    if (!hire) return res.status(404).json({ message: "Invalid trade" });
+    const hire = await HireTrade.findOne({ _id: hireId, traderId: req.user._id });
+    if (!hire || hire.status !== "ACTIVE") {
+      return res.status(400).json({ message: "Invalid trade" });
+    }
 
-    const profit = (hire.amount * hire.profitPercent) / 100;
-    const fee = profit * 0.10;
-    const investorGets = hire.amount + (profit - fee);
+    const percent = Number(profitPercent);
+    const profit = (hire.amount * percent) / 100;
+    const fee = profit * 0.1;
 
     hire.status = "PROFIT_SELECTED";
+    hire.profitPercent = percent;
     hire.profitAmount = profit;
+    hire.investorCreditAmount = hire.amount + (profit - fee);
     hire.traderEarning = fee;
     await hire.save();
 
+    // instant credit investor
     await Transaction.create({
       userId: hire.investorId,
-      type: "PROFIT",
-      amount: investorGets,
+      type: "PROFIT_CREDIT",
+      amount: hire.investorCreditAmount,
       status: "SUCCESS",
-      note: `Profit credited instantly. HireId:${hire._id}`
+      note: `Profit credited. HireId:${hire._id}`,
     });
 
-    res.json({
-      success: true,
-      message: "Profit selected. Investor credited instantly"
-    });
+    res.json({ success: true, message: "Profit selected & investor credited" });
   } catch (e) {
     res.status(500).json({ message: "Server error" });
   }
 };
 
-/* =========================
-   8️⃣ UPLOAD PROFIT PROOF
-========================= */
-
+/* ======================================================
+   UPLOAD PROFIT PROOF
+====================================================== */
 exports.uploadProof = async (req, res) => {
   try {
     const { hireId, proofImage } = req.body;
 
-    const hire = await HireTrade.findOne({
-      _id: hireId,
-      traderId: req.user._id,
-      status: "PROFIT_SELECTED"
-    });
-
-    if (!hire) return res.status(404).json({ message: "Invalid trade" });
+    const hire = await HireTrade.findOne({ _id: hireId, traderId: req.user._id });
+    if (!hire || hire.status !== "PROFIT_SELECTED") {
+      return res.status(400).json({ message: "Invalid trade" });
+    }
 
     hire.proofImage = proofImage;
     hire.status = "PROOF_PENDING";
     await hire.save();
 
-    res.json({
-      success: true,
-      message: "Profit proof submitted. Pending verification"
-    });
+    res.json({ success: true, message: "Proof submitted (pending approval)" });
   } catch (e) {
     res.status(500).json({ message: "Server error" });
   }

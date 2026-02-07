@@ -1,11 +1,45 @@
 const router = require("express").Router();
-const walletController = require("../controllers/wallet.controller");
-const { protect } = require("../middleware/auth.middleware");
+const wallet = require("../controllers/wallet.controller");
+const { protect, requireRole } = require("../middleware/auth.middleware");
 
-router.get("/system-address", protect, walletController.getSystemAddress);
+/* ===========================
+   COMMON
+   =========================== */
 
-// Investor deposit/withdraw
-router.post("/deposit", protect, walletController.depositRequest);
-router.post("/withdraw", protect, walletController.withdrawRequest);
+// system deposit addresses (copy only)
+router.get(
+  "/system-address",
+  protect,
+  wallet.getSystemAddresses
+);
+
+/* ===========================
+   INVESTOR
+   =========================== */
+
+router.post(
+  "/deposit",
+  protect,
+  requireRole("investor"),
+  wallet.deposit
+);
+
+router.post(
+  "/withdraw",
+  protect,
+  requireRole("investor"),
+  wallet.withdraw
+);
+
+/* ===========================
+   TRADER
+   =========================== */
+
+router.post(
+  "/security-deposit",
+  protect,
+  requireRole("trader"),
+  wallet.traderSecurityDeposit
+);
 
 module.exports = router;

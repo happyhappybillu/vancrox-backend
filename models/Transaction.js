@@ -1,8 +1,16 @@
 const mongoose = require("mongoose");
 
+/*
+  TRANSACTION = SINGLE SOURCE OF TRUTH
+  ❌ No balance edit without transaction
+*/
+
 const transactionSchema = new mongoose.Schema(
   {
-    // kis user ka transaction hai (investor / trader)
+    /* =========================
+       USER REFERENCE
+    ========================= */
+
     userId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
@@ -10,37 +18,56 @@ const transactionSchema = new mongoose.Schema(
       index: true,
     },
 
-    // transaction type (STRICT CONTROL)
+    role: {
+      type: String,
+      enum: ["investor", "trader"],
+      required: true,
+      index: true,
+    },
+
+    /* =========================
+       TRANSACTION TYPE
+    ========================= */
+
     type: {
       type: String,
       enum: [
-        // investor
         "DEPOSIT",
         "WITHDRAW",
-        "HIRE",
+        "SECURITY",
+        "SECURITY_REFUND",
+        "TRADE_LOCK",
         "REFUND",
         "PROFIT_CREDIT",
-
-        // trader
-        "SECURITY",
         "TRADER_EARNING",
       ],
       required: true,
       index: true,
     },
 
-    // amount (positive / negative both allowed internally)
+    /* =========================
+       AMOUNT DETAILS
+    ========================= */
+
     amount: {
       type: Number,
       required: true,
+      min: 0,
     },
 
-    coin: {
+    currency: {
       type: String,
       default: "USDT",
     },
 
-    // status always controlled by system panel
+    /* =========================
+       STATUS FLOW
+    =========================
+       PENDING  → admin action needed
+       SUCCESS  → money finalized
+       REJECTED → auto rollback
+    ========================= */
+
     status: {
       type: String,
       enum: ["PENDING", "SUCCESS", "REJECTED"],
@@ -48,33 +75,50 @@ const transactionSchema = new mongoose.Schema(
       index: true,
     },
 
-    // readable explanation
+    /* =========================
+       OPTIONAL REFERENCES
+    ========================= */
+
+    // hireTrade reference (trade related tx)
+    hireTradeId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "HireTrade",
+      default: null,
+      index: true,
+    },
+
+    /* =========================
+       PROOF / META
+    ========================= */
+
+    // deposit / security proof image (base64 or url)
+    proofImage: {
+      type: String,
+      default: "",
+    },
+
+    // withdraw address
+    withdrawAddress: {
+      type: String,
+      default: "",
+    },
+
     note: {
       type: String,
       default: "",
     },
 
-    // proof image (deposit / security / profit)
-    proof: {
-      type: String,
-      default: "",
-    },
+    /* =========================
+       ADMIN ACTION META
+    ========================= */
 
-    // withdraw / payout address
-    withdrawTo: {
-      type: String,
-      default: "",
-    },
-
-    // who approved / rejected (system panel user)
-    actionBy: {
+    reviewedBy: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
+      ref: "User", // admin
       default: null,
     },
 
-    // action time (approve / reject)
-    actionAt: {
+    reviewedAt: {
       type: Date,
       default: null,
     },
@@ -83,5 +127,11 @@ const transactionSchema = new mongoose.Schema(
     timestamps: true,
   }
 );
+
+/* =========================
+   INDEXES
+========================= */
+transactionSchema.index({ userId: 1, createdAt: -1 });
+transactionSchema.index({ type: 1, status: 1 });
 
 module.exports = mongoose.model("Transaction", transactionSchema);

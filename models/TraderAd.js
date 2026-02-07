@@ -2,7 +2,9 @@ const mongoose = require("mongoose");
 
 const traderAdSchema = new mongoose.Schema(
   {
-    // kis trader ka ad hai
+    /* =========================
+       BASIC RELATION
+    ========================= */
     traderId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
@@ -10,74 +12,108 @@ const traderAdSchema = new mongoose.Schema(
       index: true,
     },
 
-    // ad basic info
+    /* =========================
+       AD DETAILS
+    ========================= */
     title: {
       type: String,
-      default: "Pro Trader Ad",
+      default: "Professional Trading Ad",
+      trim: true,
     },
 
     description: {
       type: String,
       default: "",
+      trim: true,
     },
 
-    // ⚠️ IMPORTANT RULE (as you said)
-    // Investor amount adjust nahi karega
-    // Ad amount = trader security money
+    /* =========================
+       FIXED RULES (VERY IMPORTANT)
+    ========================= */
+
+    // 🔒 Trading amount = trader security money
     tradeAmount: {
       type: Number,
       required: true,
+      min: 1,
     },
 
-    // profit percentage shown to investor
-    profitPercent: {
+    // 📈 Trader can set return %
+    returnPercent: {
       type: Number,
-      default: 25,
+      required: true,
+      min: 1,
+      max: 500,
     },
 
-    // ad status lifecycle
-    status: {
-      type: String,
-      enum: [
-        "LIVE",        // visible to investors
-        "LOCKED",      // hired by investor
-        "COMPLETED",   // profit/loss done
-        "STOPPED",     // trader security 0 / account issue
-      ],
-      default: "LIVE",
-      index: true,
-    },
+    /* =========================
+       STATUS & VISIBILITY
+    ========================= */
 
-    // investor ne hire kiya to ye fill hoga
-    hiredBy: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-      default: null,
-    },
-
-    // hire ke baad lock time
-    hiredAt: {
-      type: Date,
-      default: null,
-    },
-
-    // trader confirmation flow
-    traderConfirmation: {
-      type: String,
-      enum: ["PENDING", "CONFIRMED", "REJECTED"],
-      default: "PENDING",
-    },
-
-    // admin/system control
+    // ad live ya nahi
     isActive: {
       type: Boolean,
       default: true,
       index: true,
+    },
+
+    // ek ad ek time pe
+    isLocked: {
+      type: Boolean,
+      default: false,
+    },
+
+    /* =========================
+       CONTROL META
+    ========================= */
+
+    // kis level pe ad banaya
+    traderLevel: {
+      type: Number,
+      default: 1,
+    },
+
+    // kitne profitable trades ke baad ad unlock hua
+    createdAfterTrades: {
+      type: Number,
+      default: 0,
     },
   },
   {
     timestamps: true,
   }
 );
+
+/* =========================
+   IMPORTANT NOTES (RULES)
+=========================
+
+1️⃣ Trader:
+   - Ek time pe sirf allowed ads:
+       level 1–2 → 1 ad
+       level 3–4 → 2 ads
+       level 5–6 → 3 ads
+       level 7–8 → 4 ads
+       level 9–10 → 5 ads
+
+2️⃣ tradeAmount:
+   - Automatically = trader security money
+   - Trader manually change nahi kar sakta
+
+3️⃣ Investor:
+   - Top Traders list yahin se aayegi
+   - Scrollable list (no limit)
+
+4️⃣ Hire ke baad:
+   - ad isLocked = true
+   - ad isActive = false
+   - trade complete/reject hone par:
+       → admin ya system unlock karega
+
+5️⃣ Admin:
+   - Force disable / enable ad
+   - Change level (indirectly affects ad limits)
+
+*/
 
 module.exports = mongoose.model("TraderAd", traderAdSchema);

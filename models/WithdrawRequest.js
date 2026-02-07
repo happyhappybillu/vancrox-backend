@@ -1,23 +1,84 @@
 const mongoose = require("mongoose");
 
-const WithdrawRequestSchema = new mongoose.Schema(
+const withdrawRequestSchema = new mongoose.Schema(
   {
-    investorId: { type: String, required: true, index: true },
-    investorName: { type: String, required: true },
-
-    amount: { type: Number, required: true, min: 1 },
-
-    toAddress: { type: String, required: true },
-
-    status: {
-      type: String,
-      enum: ["pending", "approved", "rejected"],
-      default: "pending",
+    /* =========================
+       USER INFO
+    ========================= */
+    userId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+      index: true,
     },
 
-    note: { type: String, default: "" },
+    role: {
+      type: String,
+      enum: ["investor", "trader"],
+      required: true,
+      index: true,
+    },
+
+    /* =========================
+       WITHDRAW DETAILS
+    ========================= */
+    amount: {
+      type: Number,
+      required: true,
+      min: 1,
+    },
+
+    coin: {
+      type: String,
+      default: "USDT",
+    },
+
+    network: {
+      type: String,
+      enum: ["ERC20", "TRC20", "BEP20"],
+      required: true,
+    },
+
+    withdrawAddress: {
+      type: String,
+      required: true,
+    },
+
+    /* =========================
+       STATUS FLOW (CRITICAL)
+       =========================
+       PENDING   → waiting system approval
+       APPROVED  → balance already deducted
+       REJECTED  → auto refund balance
+    ========================= */
+    status: {
+      type: String,
+      enum: ["PENDING", "APPROVED", "REJECTED"],
+      default: "PENDING",
+      index: true,
+    },
+
+    /* =========================
+       SYSTEM ACTION LOG
+    ========================= */
+    systemNote: {
+      type: String,
+      default: "",
+    },
+
+    approvedAt: {
+      type: Date,
+      default: null,
+    },
+
+    rejectedAt: {
+      type: Date,
+      default: null,
+    },
   },
-  { timestamps: true }
+  {
+    timestamps: true,
+  }
 );
 
-module.exports = mongoose.model("WithdrawRequest", WithdrawRequestSchema);
+module.exports = mongoose.model("WithdrawRequest", withdrawRequestSchema);

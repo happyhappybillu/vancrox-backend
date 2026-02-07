@@ -3,20 +3,20 @@ const HireTrade = require("../models/HireTrade");
 const Transaction = require("../models/Transaction");
 const User = require("../models/User");
 
-// =======================
-// PROFILE
-// =======================
+/* ===============================
+   INVESTOR PROFILE
+================================ */
 exports.profile = async (req, res) => {
   res.json({ success: true, investor: req.user });
 };
 
-// =======================
-// TOP TRADERS (ACTIVE ADS)
-// =======================
+/* ===============================
+   TOP TRADERS (ADS)
+================================ */
 exports.topTraders = async (req, res) => {
   try {
     const ads = await TraderAd.find({ isActive: true })
-      .populate("traderId", "name tid")
+      .populate("traderId", "name tid traderLevel")
       .sort({ createdAt: -1 });
 
     res.json({ success: true, ads });
@@ -25,14 +25,14 @@ exports.topTraders = async (req, res) => {
   }
 };
 
-// =======================
-// HIRE TRADER (FINAL FLOW)
-// =======================
+/* ===============================
+   HIRE TRADER (FINAL FLOW)
+================================ */
 exports.hireTrader = async (req, res) => {
   try {
-    const { traderAdId, amount } = req.body;
+    const { traderAdId } = req.body;
 
-    if (!traderAdId || !amount || Number(amount) <= 0) {
+    if (!traderAdId) {
       return res.status(400).json({ message: "Invalid request" });
     }
 
@@ -41,44 +41,48 @@ exports.hireTrader = async (req, res) => {
       return res.status(404).json({ message: "Trader ad not available" });
     }
 
-    // amount range check
-    if (Number(amount) < ad.minAmount || Number(amount) > ad.maxAmount) {
-      return res.status(400).json({ message: "Invalid trade amount" });
+    const investor = await User.findById(req.user._id);
+    if (investor.balance < ad.minAmount) {
+      return res.status(400).json({ message: "Low balance" });
     }
 
-    // 🔹 create hire trade (WAITING FOR TRADER CONFIRM)
+    /* 🔒 INSTANT BALANCE CUT */
+    investor.balance -= ad.minAmount;
+    await investor.save();
+
+    /* 🔹 CREATE HIRE TRADE */
     const hire = await HireTrade.create({
-      investorId: req.user._id,
+      investorId: investor._id,
       traderId: ad.traderId,
       traderAdId: ad._id,
-      amount: Number(amount),
-      status: "WAITING_TRADER_CONFIRM",
+      amount: ad.minAmount,
+      status: "WAITING_TRADER_CONFIRMATION",
       profitPercent: ad.profitPercent,
     });
 
-    // 🔹 lock investor amount (record only – balance handled via transactions)
+    /* 🔹 TRANSACTION LOG */
     await Transaction.create({
-      userId: req.user._id,
+      userId: investor._id,
       type: "HIRE",
-      amount: Number(amount),
+      amount: ad.minAmount,
       status: "SUCCESS",
-      note: `Hire requested. Waiting for trader confirmation. HireId:${hire._id}`,
+      note: "Amount locked for trader confirmation",
     });
 
     res.json({
       success: true,
-      message: "Hire request sent. Waiting for trader confirmation.",
+      message: "Waiting for trader confirmation",
       hire,
     });
   } catch (e) {
-    console.log(e);
+    console.error(e);
     res.status(500).json({ message: "Server error" });
   }
 };
 
-// =======================
-// MY INVENTORY (INVESTOR)
-// =======================
+/* ===============================
+   MY TRADERS (ALL STATES)
+================================ */
 exports.myTraders = async (req, res) => {
   try {
     const list = await HireTrade.find({ investorId: req.user._id })
@@ -91,13 +95,14 @@ exports.myTraders = async (req, res) => {
   }
 };
 
-// =======================
-// INVESTOR HISTORY
-// =======================
+/* ===============================
+   HISTORY
+================================ */
 exports.history = async (req, res) => {
   try {
     const tx = await Transaction.find({
       userId: req.user._id,
+      type: { $in: ["DEPOSIT", "WITHDRAW", "HIRE", "PROFIT_CREDIT", "REFUND"] },
     }).sort({ createdAt: -1 });
 
     res.json({ success: true, tx });

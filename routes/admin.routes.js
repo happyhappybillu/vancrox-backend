@@ -2,115 +2,36 @@ const router = require("express").Router();
 const admin = require("../controllers/admin.controller");
 const { protect, requireRole } = require("../middleware/auth.middleware");
 
-/* ======================================================
-   SYSTEM PANEL – ADMIN ROUTES (FINAL)
-   ====================================================== */
+/* DASHBOARD */
+router.get("/dashboard", protect, requireRole("admin"), admin.dashboard);
 
-/* =========================
-   DASHBOARD OVERVIEW
-   ========================= */
-router.get(
-  "/dashboard",
-  protect,
-  requireRole("admin"),
-  admin.dashboardStats
-);
+/* USERS */
+router.get("/users", protect, requireRole("admin"), admin.getUsers);
+router.post("/users/:userId/block", protect, requireRole("admin"), admin.toggleBlockUser);
 
-/* =========================
-   USER MANAGEMENT
-   ========================= */
+/* TRADER VERIFICATION */
+router.post("/trader/approve-history", protect, requireRole("admin"), admin.approveTradingHistory);
+router.post("/trader/reject-history", protect, requireRole("admin"), admin.rejectTradingHistory);
 
-// all investors / traders
-router.get(
-  "/users",
-  protect,
-  requireRole("admin"),
-  admin.getUsers
-);
+/* TRANSACTIONS */
+router.get("/transactions/pending", protect, requireRole("admin"), admin.getPendingTransactions);
+router.post("/transactions/approve", protect, requireRole("admin"), admin.approveTransaction);
+router.post("/transactions/reject", protect, requireRole("admin"), admin.rejectTransaction);
 
-// single user details (click UID / TID)
-router.get(
-  "/users/:userId",
-  protect,
-  requireRole("admin"),
-  admin.getUserDetails
-);
+/* PROFIT PROOFS */
+router.get("/profit/pending", protect, requireRole("admin"), admin.getPendingProofs);
+router.post("/profit/approve", protect, requireRole("admin"), admin.approveProfitProof);
 
-// block / unblock user
-router.post(
-  "/users/:userId/block",
-  protect,
-  requireRole("admin"),
-  admin.toggleBlockUser
-);
+/* SYSTEM ADDRESSES */
+router.get("/addresses", protect, requireRole("admin"), admin.getAddresses);
+router.post("/addresses", protect, requireRole("admin"), admin.updateAddresses);
 
-/* =========================
-   TRADER VERIFICATION
-   ========================= */
+/* NOTIFICATIONS */
+router.post("/notifications", protect, requireRole("admin"), admin.createNotification);
 
-// approve trader (2 year history)
-router.post(
-  "/trader/approve",
-  protect,
-  requireRole("admin"),
-  admin.approveTrader
-);
-
-// reject trader
-router.post(
-  "/trader/reject",
-  protect,
-  requireRole("admin"),
-  admin.rejectTrader
-);
-
-/* =========================
-   PENDING TRANSACTIONS
-   ========================= */
-
-// approve deposit / withdraw / security
-router.post(
-  "/transaction/approve",
-  protect,
-  requireRole("admin"),
-  admin.approveTransaction
-);
-
-// reject deposit / withdraw
-router.post(
-  "/transaction/reject",
-  protect,
-  requireRole("admin"),
-  admin.rejectTransaction
-);
-
-/* =========================
-   PROFIT PROOF APPROVAL
-   ========================= */
-
-router.post(
-  "/profit/approve",
-  protect,
-  requireRole("admin"),
-  admin.approveProfitProof
-);
-
-/* =========================
-   SYSTEM ADDRESSES (CRITICAL)
-   ========================= */
-
-router.get(
-  "/addresses",
-  protect,
-  requireRole("admin"),
-  admin.getSystemAddress
-);
-
-router.post(
-  "/addresses",
-  protect,
-  requireRole("admin"),
-  admin.updateSystemAddress
-);
+/* SUPPORT */
+router.get("/support", protect, requireRole("admin"), admin.getSupportTickets);
+router.post("/support/reply", protect, requireRole("admin"), admin.replySupport);
+router.post("/support/resolve", protect, requireRole("admin"), admin.resolveSupport);
 
 module.exports = router;

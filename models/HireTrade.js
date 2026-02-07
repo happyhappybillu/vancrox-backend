@@ -1,8 +1,16 @@
 const mongoose = require("mongoose");
 
+/*
+  HireTrade = COMPLETE TRADE LIFECYCLE
+  ❌ No shortcut allowed
+*/
+
 const hireTradeSchema = new mongoose.Schema(
   {
-    // kis investor ne hire kiya
+    /* =========================
+       CORE REFERENCES
+    ========================= */
+
     investorId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
@@ -10,7 +18,6 @@ const hireTradeSchema = new mongoose.Schema(
       index: true,
     },
 
-    // kis trader ko hire kiya
     traderId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
@@ -18,7 +25,6 @@ const hireTradeSchema = new mongoose.Schema(
       index: true,
     },
 
-    // kaunsa trader ad hire hua
     traderAdId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "TraderAd",
@@ -26,40 +32,21 @@ const hireTradeSchema = new mongoose.Schema(
       index: true,
     },
 
-    // 🔒 FIXED RULE
-    // amount = traderAd.tradeAmount (investor cannot change)
+    /* =========================
+       TRADE AMOUNT (FIXED)
+       = trader security money
+    ========================= */
+
     amount: {
       type: Number,
       required: true,
+      min: 1,
     },
 
     /* =========================
-       STATUS FLOW (VERY IMPORTANT)
-       =========================
-       WAITING_TRADER_CONFIRMATION
-         → trader CONFIRM / REJECT
+       STATUS ENGINE (LOCKED)
+    ========================= */
 
-       REJECTED_BY_TRADER
-         → auto refund investor
-         → trade closed
-
-       ACTIVE
-         → trader trading start
-
-       LOSS_SELECTED
-         → investor refund
-         → trader security = 0
-
-       PROFIT_SELECTED
-         → investor credited instantly
-
-       PROOF_PENDING
-         → waiting for system approval
-
-       PROOF_APPROVED
-         → trader earning credited
-         → trade completed
-    ========================== */
     status: {
       type: String,
       enum: [
@@ -75,33 +62,85 @@ const hireTradeSchema = new mongoose.Schema(
       index: true,
     },
 
-    // trader confirmation flag
+    /* =========================
+       TRADER CONFIRMATION
+    ========================= */
+
     traderConfirmation: {
       type: String,
       enum: ["PENDING", "CONFIRMED", "REJECTED"],
       default: "PENDING",
     },
 
-    // profit related data
-    profitPercent: { type: Number, default: 0 },
-    profitAmount: { type: Number, default: 0 },
+    traderConfirmedAt: {
+      type: Date,
+      default: null,
+    },
 
-    // investor ko kitna mila (instant credit on profit select)
-    investorCreditAmount: { type: Number, default: 0 },
+    /* =========================
+       PROFIT / LOSS DATA
+    ========================= */
 
-    // trader ka earning (10% of profit, after approval)
-    traderEarning: { type: Number, default: 0 },
+    profitPercent: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
 
-    // proof uploaded by trader
-    proofImage: { type: String, default: "" },
+    profitAmount: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
 
-    // timestamps for tracking
-    traderConfirmedAt: { type: Date, default: null },
-    closedAt: { type: Date, default: null },
+    // investor gets this instantly on PROFIT_SELECTED
+    investorCreditAmount: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+
+    // trader gets this after admin approval
+    traderEarning: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+
+    /* =========================
+       PROOF & VERIFICATION
+    ========================= */
+
+    proofImage: {
+      type: String,
+      default: "",
+    },
+
+    proofUploadedAt: {
+      type: Date,
+      default: null,
+    },
+
+    /* =========================
+       TRADE CLOSURE
+    ========================= */
+
+    closedAt: {
+      type: Date,
+      default: null,
+    },
   },
   {
     timestamps: true,
   }
 );
+
+/* =========================
+   INDEXES (PERFORMANCE)
+========================= */
+
+hireTradeSchema.index({ investorId: 1, createdAt: -1 });
+hireTradeSchema.index({ traderId: 1, status: 1 });
+hireTradeSchema.index({ status: 1, createdAt: -1 });
 
 module.exports = mongoose.model("HireTrade", hireTradeSchema);

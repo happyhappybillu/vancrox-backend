@@ -1,56 +1,75 @@
-const express = require("express");
-const router = express.Router();
+const router = require("express").Router();
+const support = require("../controllers/support.controller");
+const { protect, requireRole } = require("../middleware/auth.middleware");
 
-const SupportMessage = require("../models/SupportMessage");
+/* =====================================
+   INVESTOR / TRADER
+===================================== */
 
-// ✅ Visitor/Investor/Trader support message send
-router.post("/send", async (req, res) => {
-  try {
-    const { name, email, userId, role, message } = req.body;
+// create support ticket
+router.post(
+  "/create",
+  protect,
+  requireRole("investor"), // trader bhi same route use karega
+  support.createTicket
+);
 
-    if (!message) {
-      return res.status(400).json({ success: false, message: "Message is required" });
-    }
+// trader ke liye bhi allow
+router.post(
+  "/create-trader",
+  protect,
+  requireRole("trader"),
+  support.createTicket
+);
 
-    const newMsg = await SupportMessage.create({
-      name: name || "Unknown",
-      email: email || "",
-      userId: userId || "",
-      role: role || "visitor",
-      message
-    });
+// get my active ticket (OPEN)
+router.get(
+  "/my",
+  protect,
+  support.getMyTicket
+);
 
-    res.json({ success: true, message: "Message sent", data: newMsg });
-  } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
-  }
-});
+// reply to ticket (investor / trader)
+router.post(
+  "/reply",
+  protect,
+  support.replyToTicket
+);
 
-// ✅ Admin fetch all messages
-router.get("/all", async (req, res) => {
-  try {
-    const all = await SupportMessage.find().sort({ createdAt: -1 });
-    res.json({ success: true, data: all });
-  } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
-  }
-});
+/* =====================================
+   SYSTEM PANEL (ADMIN ROLE)
+===================================== */
 
-// ✅ Admin reply
-router.post("/reply/:id", async (req, res) => {
-  try {
-    const { reply } = req.body;
+// all open tickets
+router.get(
+  "/system/all",
+  protect,
+  requireRole("admin"),
+  support.getAllOpenTickets
+);
 
-    const msg = await SupportMessage.findByIdAndUpdate(
-      req.params.id,
-      { reply, repliedAt: new Date() },
-      { new: true }
-    );
+// view single ticket (full conversation)
+router.get(
+  "/system/:id",
+  protect,
+  requireRole("admin"),
+  support.getTicketById
+);
 
-    res.json({ success: true, message: "Replied", data: msg });
-  } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
-  }
-});
+// system reply
+router.post(
+  "/system/reply",
+  protect,
+  requireRole("admin"),
+  support.systemReply
+);
+
+// resolve ticket
+router.post(
+  "/system/resolve",
+  protect,
+  requireRole("admin"),
+  support.resolveTicket
+);
 
 module.exports = router;

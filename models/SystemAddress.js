@@ -1,17 +1,12 @@
 const mongoose = require("mongoose");
 
-/**
- * =========================
- * SYSTEM WALLET ADDRESSES
- * =========================
- * ⚠️ Single document only
- * Used by:
- * - Investor Deposit Page
- * - Trader Profit Payout Page
- * Editable ONLY from System Panel
- */
 const systemAddressSchema = new mongoose.Schema(
   {
+    /* =========================
+       DEPOSIT / PAYOUT ADDRESSES
+       (ADMIN / SYSTEM CONTROLLED)
+    ========================= */
+
     erc20: {
       type: String,
       default: "",
@@ -30,10 +25,13 @@ const systemAddressSchema = new mongoose.Schema(
       trim: true,
     },
 
-    // 🔒 safety flag (future-proof)
-    isActive: {
-      type: Boolean,
-      default: true,
+    /* =========================
+       META
+    ========================= */
+    updatedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Admin",
+      default: null,
     },
   },
   {
@@ -41,9 +39,13 @@ const systemAddressSchema = new mongoose.Schema(
   }
 );
 
-/**
- * ⚠️ RULE:
- * Database me hamesha sirf 1 document hona chahiye
- * Admin panel usi ko update karega
- */
+/*
+  RULE:
+  - System me sirf EK hi document hoga
+  - Admin edit karega
+  - Save ke turant baad:
+      → Investor deposit page update
+      → Trader profit payout page update
+*/
+
 module.exports = mongoose.model("SystemAddress", systemAddressSchema);
