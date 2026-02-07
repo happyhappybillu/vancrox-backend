@@ -1,71 +1,64 @@
-const express = require("express");
-const router = express.Router();
-
-const investorController = require("../controllers/investor.controller");
-const notificationController = require("../controllers/notification.controller");
-
+const router = require("express").Router();
+const investor = require("../controllers/investor.controller");
+const notification = require("../controllers/notification.controller");
 const { protect, requireRole } = require("../middleware/auth.middleware");
 
-/* ======================================================
-   INVESTOR 
-====================================================== */
+/* ================= INVESTOR ================= */
 
 // profile
 router.get(
   "/profile",
   protect,
   requireRole("investor"),
-  investorController.profile
+  investor.profile
 );
 
-// top traders (live ads)
+// top traders
 router.get(
   "/top-traders",
   protect,
   requireRole("investor"),
-  investorController.topTraders
+  investor.topTraders
 );
 
-// hire trader (ONLY confirm flow)
+// hire trader
 router.post(
   "/hire",
   protect,
   requireRole("investor"),
-  investorController.hireTrader
+  investor.hireTrader
 );
 
-// my traders (waiting / active / profit / loss / rejected)
+// my traders
 router.get(
   "/my-traders",
   protect,
   requireRole("investor"),
-  investorController.myTraders
+  investor.myTraders
 );
 
-// transaction history
+// history
 router.get(
   "/history",
   protect,
   requireRole("investor"),
-  investorController.history
+  investor.history
 );
 
-// withdraw request
+// withdraw
 router.post(
   "/withdraw",
   protect,
   requireRole("investor"),
-  investorController.withdrawRequest
+  investor.withdrawRequest
 );
 
-/* ======================================================
-   INVESTOR NOTIFICATIONS
-====================================================== */
+// notifications
 router.get(
   "/notifications",
   protect,
   requireRole("investor"),
-  notificationController.getInvestorNotifications
+  notification.getInvestorNotifications
 );
 
 module.exports = router;
