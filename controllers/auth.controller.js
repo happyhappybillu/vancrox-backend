@@ -19,9 +19,9 @@ const signToken = (user) => {
   );
 };
 
-/* ===========================
+/* ======================================================
    INVESTOR REGISTER
-=========================== */
+====================================================== */
 exports.registerInvestor = async (req, res) => {
   try {
     const { name, email, mobile, password } = req.body;
@@ -29,26 +29,22 @@ exports.registerInvestor = async (req, res) => {
     if (!name || !password) {
       return res.status(400).json({ message: "Name & password required" });
     }
-
     if (!email && !mobile) {
       return res.status(400).json({ message: "Email or mobile required" });
     }
 
-    // check existing
     const exists = await User.findOne({
       $or: [
         email ? { email } : null,
         mobile ? { mobile } : null,
       ].filter(Boolean),
     });
-
     if (exists) {
       return res.status(400).json({ message: "User already exists" });
     }
 
     const hashed = await bcrypt.hash(password, 10);
 
-    // generate UID
     const last = await User.findOne({ role: "investor" }).sort({ uid: -1 });
     const nextUid = last?.uid ? last.uid + 1 : 100001;
 
@@ -59,28 +55,28 @@ exports.registerInvestor = async (req, res) => {
       mobile: mobile || null,
       password: hashed,
       uid: nextUid,
+      balance: 0,
     });
 
     const token = signToken(user);
 
+    // 🔴 FRONTEND EXPECTS role AT ROOT LEVEL
     res.json({
       success: true,
       message: "Investor registered successfully",
       token,
-      user: {
-        name: user.name,
-        uid: user.uid,
-        role: user.role,
-      },
+      role: user.role,
+      uid: user.uid,
     });
   } catch (e) {
+    console.error(e);
     res.status(500).json({ message: "Server error" });
   }
 };
 
-/* ===========================
+/* ======================================================
    TRADER REGISTER
-=========================== */
+====================================================== */
 exports.registerTrader = async (req, res) => {
   try {
     const { name, email, mobile, password } = req.body;
@@ -88,7 +84,6 @@ exports.registerTrader = async (req, res) => {
     if (!name || !password) {
       return res.status(400).json({ message: "Name & password required" });
     }
-
     if (!email && !mobile) {
       return res.status(400).json({ message: "Email or mobile required" });
     }
@@ -99,14 +94,12 @@ exports.registerTrader = async (req, res) => {
         mobile ? { mobile } : null,
       ].filter(Boolean),
     });
-
     if (exists) {
       return res.status(400).json({ message: "User already exists" });
     }
 
     const hashed = await bcrypt.hash(password, 10);
 
-    // generate TID
     const last = await User.findOne({ role: "trader" }).sort({ tid: -1 });
     const nextTid = last?.tid ? last.tid + 1 : 500001;
 
@@ -117,6 +110,8 @@ exports.registerTrader = async (req, res) => {
       mobile: mobile || null,
       password: hashed,
       tid: nextTid,
+      traderLevel: 1,
+      securityBalance: 0,
     });
 
     const token = signToken(user);
@@ -125,33 +120,28 @@ exports.registerTrader = async (req, res) => {
       success: true,
       message: "Trader registered successfully",
       token,
-      user: {
-        name: user.name,
-        tid: user.tid,
-        role: user.role,
-      },
+      role: user.role,
+      tid: user.tid,
     });
   } catch (e) {
+    console.error(e);
     res.status(500).json({ message: "Server error" });
   }
 };
 
-/* ===========================
-   LOGIN (INVESTOR / TRADER / SYSTEM)
-=========================== */
+/* ======================================================
+   LOGIN (INVESTOR / TRADER / ADMIN)
+====================================================== */
 exports.login = async (req, res) => {
   try {
-    const { email, mobile, password } = req.body;
+    const { emailOrMobile, password } = req.body;
 
-    if ((!email && !mobile) || !password) {
+    if (!emailOrMobile || !password) {
       return res.status(400).json({ message: "Credentials required" });
     }
 
     const user = await User.findOne({
-      $or: [
-        email ? { email } : null,
-        mobile ? { mobile } : null,
-      ].filter(Boolean),
+      $or: [{ email: emailOrMobile }, { mobile: emailOrMobile }],
     });
 
     if (!user) {
@@ -169,50 +159,49 @@ exports.login = async (req, res) => {
 
     const token = signToken(user);
 
+    // 🔴 FRONTEND EXPECTS THESE FIELDS DIRECTLY
     res.json({
       success: true,
       message: "Login successful",
       token,
-      user: {
-        role: user.role,
-        name: user.name,
-        uid: user.uid,
-        tid: user.tid,
-      },
+      role: user.role,
+      uid: user.uid || null,
+      tid: user.tid || null,
+      name: user.name,
+      email: user.email,
+      mobile: user.mobile,
     });
   } catch (e) {
+    console.error(e);
     res.status(500).json({ message: "Server error" });
   }
 };
 
-/* ===========================
-   ME (PROFILE)
-=========================== */
+/* ======================================================
+   ME (AUTH PROFILE)
+====================================================== */
 exports.me = async (req, res) => {
   try {
-    // master system user
-    if (req.user.id === "master_admin") {
-      return res.json({
-        success: true,
-        user: {
-          role: "admin",
-          name: "System Control",
-        },
-      });
+    const user = await User.findById(req.user._id).select(
+      "-password"
+    );
+
+    if (!user) {
+      return res.status(401).json({ message: "Unauthorized" });
     }
 
     res.json({
       success: true,
-      user: req.user,
+      user,
     });
   } catch (e) {
     res.status(500).json({ message: "Server error" });
   }
 };
 
-/* ===========================
+/* ======================================================
    CHANGE PASSWORD
-=========================== */
+====================================================== */
 exports.changePassword = async (req, res) => {
   try {
     const { oldPassword, newPassword } = req.body;
@@ -222,7 +211,9 @@ exports.changePassword = async (req, res) => {
     }
 
     const user = await User.findById(req.user._id);
-    if (!user) return res.status(404).json({ message: "User not found" });
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
 
     const ok = await bcrypt.compare(oldPassword, user.password);
     if (!ok) {
