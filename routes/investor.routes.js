@@ -1,6 +1,9 @@
-const router = require("express").Router();
-const investor = require("../controllers/investor.controller");
-const notification = require("../controllers/notification.controller");
+const express = require("express");
+const router = express.Router();
+
+const investorController = require("../controllers/investor.controller");
+const notificationController = require("../controllers/notification.controller");
+
 const { protect, requireRole } = require("../middleware/auth.middleware");
 
 /* ======================================================
@@ -8,22 +11,52 @@ const { protect, requireRole } = require("../middleware/auth.middleware");
 ====================================================== */
 
 // profile
-router.get("/profile", protect, requireRole("investor"), investor.profile);
+router.get(
+  "/profile",
+  protect,
+  requireRole("investor"),
+  investorController.profile
+);
 
 // top traders (live ads)
-router.get("/top-traders", protect, requireRole("investor"), investor.topTraders);
+router.get(
+  "/top-traders",
+  protect,
+  requireRole("investor"),
+  investorController.topTraders
+);
 
 // hire trader (ONLY confirm flow)
-router.post("/hire", protect, requireRole("investor"), investor.hireTrader);
+router.post(
+  "/hire",
+  protect,
+  requireRole("investor"),
+  investorController.hireTrader
+);
 
 // my traders (waiting / active / profit / loss / rejected)
-router.get("/my-traders", protect, requireRole("investor"), investor.myTraders);
+router.get(
+  "/my-traders",
+  protect,
+  requireRole("investor"),
+  investorController.myTraders
+);
 
 // transaction history
-router.get("/history", protect, requireRole("investor"), investor.history);
+router.get(
+  "/history",
+  protect,
+  requireRole("investor"),
+  investorController.history
+);
 
 // withdraw request
-router.post("/withdraw", protect, requireRole("investor"), investor.withdrawRequest);
+router.post(
+  "/withdraw",
+  protect,
+  requireRole("investor"),
+  investorController.withdrawRequest
+);
 
 /* ======================================================
    INVESTOR NOTIFICATIONS
@@ -33,7 +66,7 @@ router.get(
   "/notifications",
   protect,
   requireRole("investor"),
-  notification.getInvestorNotifications
+  notificationController.getInvestorNotifications
 );
 
 module.exports = router;
