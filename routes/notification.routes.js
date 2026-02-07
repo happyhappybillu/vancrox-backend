@@ -1,57 +1,35 @@
-const express = require("express");
-const router = express.Router();
+const router = require("express").Router();
+const notification = require("../controllers/notification.controller");
+const { protect, requireRole } = require("../middleware/auth.middleware");
 
-const notificationController = require("../controllers/notification.controller");
-
-// middlewares
-const { protect } = require("../middleware/auth.middleware");
-const { adminOnly } = require("../middleware/admin.middleware");
-
-/* ======================================================
-   ADMIN ROUTES
-====================================================== */
-
-// create notification (investor / trader / all)
+/* ================= ADMIN ================= */
 router.post(
   "/admin/create",
   protect,
-  adminOnly,
-  notificationController.createNotification
+  requireRole("admin"),
+  notification.createNotification
 );
 
-// get all notifications (admin dashboard)
-router.get(
-  "/admin/all",
-  protect,
-  adminOnly,
-  notificationController.getAllNotifications
-);
-
-// update notification
 router.put(
-  "/admin/update/:id",
+  "/admin/:id",
   protect,
-  adminOnly,
-  notificationController.updateNotification
+  requireRole("admin"),
+  notification.updateNotification
 );
 
-// delete (disable) notification
 router.delete(
-  "/admin/delete/:id",
+  "/admin/:id",
   protect,
-  adminOnly,
-  notificationController.deleteNotification
+  requireRole("admin"),
+  notification.deleteNotification
 );
 
-/* ======================================================
-   INVESTOR / TRADER ROUTES
-====================================================== */
-
-// get my notifications (permanent)
+/* ================= INVESTOR ================= */
 router.get(
-  "/my",
+  "/investor",
   protect,
-  notificationController.getMyNotifications
+  requireRole("investor"),
+  notification.getInvestorNotifications
 );
 
 module.exports = router;
