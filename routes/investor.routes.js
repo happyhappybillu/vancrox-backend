@@ -7,7 +7,7 @@ const notificationController = require("../controllers/notification.controller")
 const { protect, requireRole } = require("../middleware/auth.middleware");
 
 /* ======================================================
-   INVESTOR CORE
+   INVESTOR 
 ====================================================== */
 
 // profile
@@ -60,7 +60,6 @@ router.post(
 
 /* ======================================================
    INVESTOR NOTIFICATIONS
-   (admin/system creates → investor reads)
 ====================================================== */
 router.get(
   "/notifications",

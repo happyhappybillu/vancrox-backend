@@ -147,7 +147,7 @@ exports.withdrawRequest = async (req, res) => {
       return res.status(400).json({ message: "Insufficient balance" });
     }
 
-    /* 🔒 CUT BALANCE IMMEDIATELY */
+    /* 🔒 CUT IMMEDIATELY */
     investor.balance -= amount;
     await investor.save();
 
