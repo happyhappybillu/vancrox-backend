@@ -34,7 +34,7 @@ exports.registerInvestor = async (req, res) => {
         ...(email ? [{ email }] : []),
         ...(mobile ? [{ mobile }] : []),
       ],
-    });
+    }).select("+password");
 
     if (exists)
       return res.status(400).json({ message: "User already exists" });
@@ -86,7 +86,7 @@ exports.registerTrader = async (req, res) => {
         ...(email ? [{ email }] : []),
         ...(mobile ? [{ mobile }] : []),
       ],
-    });
+    }).select("+password");
 
     if (exists)
       return res.status(400).json({ message: "User already exists" });
@@ -185,7 +185,7 @@ exports.changePassword = async (req, res) => {
     if (!oldPassword || !newPassword)
       return res.status(400).json({ message: "Old & new password required" });
 
-    const user = await User.findById(req.user._id);
+    const user = await User.findById(req.user._id).select("+password");
     if (!user)
       return res.status(404).json({ message: "User not found" });
 
@@ -198,6 +198,48 @@ exports.changePassword = async (req, res) => {
 
     res.json({ success: true, message: "Password updated successfully" });
   } catch (e) {
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+/* ======================================================
+   ADMIN LOGIN (ENV BASED – DB USER NAHI)
+====================================================== */
+exports.adminLogin = async (req, res) => {
+  try {
+    const { emailOrMobile, password } = req.body;
+
+    if (!emailOrMobile || !password) {
+      return res.status(400).json({ message: "Credentials required" });
+    }
+
+    const ADMIN_EMAIL = (process.env.ADMIN_EMAIL || "").trim();
+    const ADMIN_PASS  = (process.env.ADMIN_PASS || "").trim();
+
+    if (!ADMIN_EMAIL || !ADMIN_PASS) {
+      return res.status(500).json({ message: "Admin credentials not configured" });
+    }
+
+    if (emailOrMobile !== ADMIN_EMAIL || password !== ADMIN_PASS) {
+      return res.status(401).json({ message: "Invalid admin credentials" });
+    }
+
+    const token = jwt.sign(
+      { id: "master_admin", role: "admin" },
+      JWT_SECRET,
+      { expiresIn: JWT_EXPIRE }
+    );
+
+    res.json({
+      success: true,
+      message: "Admin login successful",
+      token,
+      role: "admin",
+      name: "System Admin",
+    });
+
+  } catch (e) {
+    console.error("Admin Login Error:", e);
     res.status(500).json({ message: "Server error" });
   }
 };
