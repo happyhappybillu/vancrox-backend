@@ -184,3 +184,31 @@ exports.changePassword = async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 };
+
+// ================= ADMIN LOGIN =================
+exports.adminLogin = async (req, res) => {
+  const { emailOrMobile, password } = req.body;
+
+  const ADMIN_EMAIL = process.env.ADMIN_EMAIL;
+  const ADMIN_PASS = process.env.ADMIN_PASS;
+
+  if (
+    emailOrMobile === ADMIN_EMAIL &&
+    password === ADMIN_PASS
+  ) {
+    const token = jwt.sign(
+      { id: "admin", role: "admin" },
+      JWT_SECRET,
+      { expiresIn: "7d" }
+    );
+
+    return res.json({
+      success: true,
+      token,
+      role: "admin",
+      name: "Admin",
+    });
+  }
+
+  return res.status(401).json({ message: "Invalid admin credentials" });
+};
