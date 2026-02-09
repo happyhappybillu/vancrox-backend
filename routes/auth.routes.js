@@ -8,7 +8,7 @@ const { protect } = require("../middleware/auth.middleware");
 router.post("/register/investor", auth.registerInvestor);
 router.post("/register/trader", auth.registerTrader);
 
-router.post("/admin/login", auth.adminLogin);
+router.post("/admin-login", auth.adminLogin);
 
 /* LOGIN */
 router.post("/login", auth.login);
