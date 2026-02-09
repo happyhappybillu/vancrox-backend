@@ -2,7 +2,7 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 
-const JWT_SECRET = process.env.JWT_SECRET || "vancrox_secret_key_9988";
+const JWT_SECRET = process.env.JWT_SECRET || "vancroxJWT@2026SuperSecret";
 const JWT_EXPIRE = "7d";
 
 /* ===========================
@@ -211,4 +211,37 @@ exports.adminLogin = async (req, res) => {
   }
 
   return res.status(401).json({ message: "Invalid admin credentials" });
+};
+
+exports.adminLogin = async (req, res) => {
+  try {
+    const { emailOrMobile, password } = req.body;
+
+    if (!emailOrMobile || !password) {
+      return res.status(400).json({ message: "Missing credentials" });
+    }
+
+    if (
+      emailOrMobile !== process.env.ADMIN_EMAIL ||
+      password !== process.env.ADMIN_PASS
+    ) {
+      return res.status(401).json({ message: "Invalid admin credentials" });
+    }
+
+    const token = jwt.sign(
+      { id: "master_admin", role: "admin" },
+      process.env.JWT_SECRET,
+      { expiresIn: "7d" }
+    );
+
+    res.json({
+      success: true,
+      token,
+      role: "admin",
+      name: "System Admin"
+    });
+
+  } catch (e) {
+    res.status(500).json({ message: "Server error" });
+  }
 };

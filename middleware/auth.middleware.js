@@ -21,7 +21,7 @@ exports.protect = async (req, res, next) => {
     let decoded;
 
     try {
-      decoded = jwt.verify(token, JWT_SECRET);
+      decoded = jwt.verify(token, process.env.JWT_SECRET);
     } catch (err) {
       return res.status(401).json({
         success: false,
