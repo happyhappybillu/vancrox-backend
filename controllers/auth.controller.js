@@ -8,12 +8,8 @@ const JWT_EXPIRE = "7d";
 /* ===========================
    TOKEN HELPER
 =========================== */
-const signToken = (user) => {
-  return jwt.sign(
-    { id: user._id, role: user.role },
-    JWT_SECRET,
-    { expiresIn: JWT_EXPIRE }
-  );
+const signToken = (payload) => {
+  return jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRE });
 };
 
 /* ===========================
@@ -23,13 +19,11 @@ exports.registerInvestor = async (req, res) => {
   try {
     const { name, email, mobile, password } = req.body;
 
-    if (!name || !password) {
+    if (!name || !password)
       return res.status(400).json({ message: "Name & password required" });
-    }
 
-    if (!email && !mobile) {
+    if (!email && !mobile)
       return res.status(400).json({ message: "Email or mobile required" });
-    }
 
     const exists = await User.findOne({
       $or: [
@@ -38,11 +32,10 @@ exports.registerInvestor = async (req, res) => {
       ],
     });
 
-    if (exists) {
+    if (exists)
       return res.status(400).json({ message: "User already exists" });
-    }
 
-    const hashedPassword = await bcrypt.hash(password, 10);
+    const hashed = await bcrypt.hash(password, 10);
 
     const last = await User.findOne({ role: "investor" }).sort({ uid: -1 });
     const nextUid = last?.uid ? last.uid + 1 : 100001;
@@ -52,12 +45,12 @@ exports.registerInvestor = async (req, res) => {
       name,
       email: email || null,
       mobile: mobile || null,
-      password: hashedPassword,
+      password: hashed,
       uid: nextUid,
       balance: 0,
     });
 
-    const token = signToken(user);
+    const token = signToken({ id: user._id, role: "investor" });
 
     res.json({
       success: true,
@@ -78,13 +71,11 @@ exports.registerTrader = async (req, res) => {
   try {
     const { name, email, mobile, password } = req.body;
 
-    if (!name || !password) {
+    if (!name || !password)
       return res.status(400).json({ message: "Name & password required" });
-    }
 
-    if (!email && !mobile) {
+    if (!email && !mobile)
       return res.status(400).json({ message: "Email or mobile required" });
-    }
 
     const exists = await User.findOne({
       $or: [
@@ -93,11 +84,10 @@ exports.registerTrader = async (req, res) => {
       ],
     });
 
-    if (exists) {
+    if (exists)
       return res.status(400).json({ message: "User already exists" });
-    }
 
-    const hashedPassword = await bcrypt.hash(password, 10);
+    const hashed = await bcrypt.hash(password, 10);
 
     const last = await User.findOne({ role: "trader" }).sort({ tid: -1 });
     const nextTid = last?.tid ? last.tid + 1 : 500001;
@@ -107,15 +97,13 @@ exports.registerTrader = async (req, res) => {
       name,
       email: email || null,
       mobile: mobile || null,
-      password: hashedPassword,
+      password: hashed,
       tid: nextTid,
       traderLevel: 1,
       securityBalance: 0,
-      isHistoryApproved: false,
-      isBlocked: false,
     });
 
-    const token = signToken(user);
+    const token = signToken({ id: user._id, role: "trader" });
 
     res.json({
       success: true,
@@ -130,40 +118,30 @@ exports.registerTrader = async (req, res) => {
 };
 
 /* ===========================
-   LOGIN (INVESTOR / TRADER)
+   LOGIN (INVESTOR + TRADER)
 =========================== */
 exports.login = async (req, res) => {
   try {
-    const { emailOrMobile, email, mobile, password } = req.body;
+    const { emailOrMobile, password } = req.body;
 
-    if (!password) {
-      return res.status(400).json({ message: "Password required" });
-    }
-
-    const identifier = emailOrMobile || email || mobile;
-
-    if (!identifier) {
-      return res.status(400).json({ message: "Email or mobile required" });
-    }
+    if (!emailOrMobile || !password)
+      return res.status(400).json({ message: "Credentials required" });
 
     const user = await User.findOne({
-      $or: [{ email: identifier }, { mobile: identifier }],
+      $or: [{ email: emailOrMobile }, { mobile: emailOrMobile }],
     });
 
-    if (!user || !user.password) {
+    if (!user)
       return res.status(400).json({ message: "Invalid credentials" });
-    }
 
-    if (user.isBlocked) {
+    if (user.isBlocked)
       return res.status(403).json({ message: "Account blocked" });
-    }
 
     const match = await bcrypt.compare(password, user.password);
-    if (!match) {
+    if (!match)
       return res.status(400).json({ message: "Invalid credentials" });
-    }
 
-    const token = signToken(user);
+    const token = signToken({ id: user._id, role: user.role });
 
     res.json({
       success: true,
@@ -182,18 +160,13 @@ exports.login = async (req, res) => {
 };
 
 /* ===========================
-   ME (SESSION CHECK)
+   ME
 =========================== */
 exports.me = async (req, res) => {
   try {
     const user = await User.findById(req.user._id).select("-password");
-
     res.set("Cache-Control", "no-store");
-
-    res.json({
-      success: true,
-      user,
-    });
+    res.json({ success: true, user });
   } catch (e) {
     res.status(500).json({ message: "Server error" });
   }
@@ -206,42 +179,34 @@ exports.changePassword = async (req, res) => {
   try {
     const { oldPassword, newPassword } = req.body;
 
-    if (!oldPassword || !newPassword) {
+    if (!oldPassword || !newPassword)
       return res.status(400).json({ message: "Old & new password required" });
-    }
 
     const user = await User.findById(req.user._id);
-    if (!user) {
-      return res.status(404).json({ message: "User not found" });
-    }
+    if (!user) return res.status(404).json({ message: "User not found" });
 
     const ok = await bcrypt.compare(oldPassword, user.password);
-    if (!ok) {
+    if (!ok)
       return res.status(400).json({ message: "Old password incorrect" });
-    }
 
     user.password = await bcrypt.hash(newPassword, 10);
     await user.save();
 
-    res.json({
-      success: true,
-      message: "Password updated successfully",
-    });
+    res.json({ success: true, message: "Password updated successfully" });
   } catch (e) {
     res.status(500).json({ message: "Server error" });
   }
 };
 
 /* ===========================
-   ADMIN LOGIN (ENV BASED)
+   ADMIN LOGIN (FIXED)
 =========================== */
 exports.adminLogin = async (req, res) => {
   try {
     const { emailOrMobile, password } = req.body;
 
-    if (!emailOrMobile || !password) {
+    if (!emailOrMobile || !password)
       return res.status(400).json({ message: "Credentials required" });
-    }
 
     if (
       emailOrMobile !== process.env.ADMIN_EMAIL ||
@@ -250,11 +215,7 @@ exports.adminLogin = async (req, res) => {
       return res.status(401).json({ message: "Invalid admin credentials" });
     }
 
-    const token = jwt.sign(
-      { id: "master_admin", role: "admin" },
-      JWT_SECRET,
-      { expiresIn: JWT_EXPIRE }
-    );
+    const token = signToken({ id: "admin", role: "admin" });
 
     res.json({
       success: true,
