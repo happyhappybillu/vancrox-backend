@@ -126,16 +126,21 @@ exports.registerTrader = async (req, res) => {
 =========================== */
 exports.login = async (req, res) => {
   try {
-    const { emailOrMobile, password } = req.body;
+    const { emailOrMobile, email, mobile, password } = req.body;
 
-    if (!emailOrMobile || !password)
-      return res.status(400).json({ message: "Credentials required" });
+    if (!password)
+      return res.status(400).json({ message: "Password required" });
+
+    const identifier = emailOrMobile || email || mobile;
+
+    if (!identifier)
+      return res.status(400).json({ message: "Email or mobile required" });
 
     const user = await User.findOne({
-      $or: [{ email: emailOrMobile }, { mobile: emailOrMobile }],
+      $or: [{ email: identifier }, { mobile: identifier }],
     });
 
-    if (!user)
+    if (!user || !user.password)
       return res.status(400).json({ message: "Invalid credentials" });
 
     if (user.isBlocked)
