@@ -86,7 +86,7 @@ app.use("/api/trader", traderRoutes);
 app.use("/api/wallet", walletRoutes);
 
 // SYSTEM PANEL (ADMIN / TEAM)
-app.use("/api/system", adminRoutes);
+app.use("/api/admin", adminRoutes);
 
 // SUPPORT / HELP
 app.use("/api/support", supportRoutes);

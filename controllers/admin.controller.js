@@ -20,14 +20,13 @@ exports.dashboard = async (req, res) => {
 
     res.json({
       success: true,
-      stats: {
-        totalInvestors,
-        totalTraders,
-        pendingRequests: pendingTx + pendingProofs,
-        openTickets,
-      },
+      totalInvestors,
+      totalTraders,
+      pendingRequests: pendingTx + pendingProofs,
+      openTickets,
     });
   } catch (e) {
+    console.error("Admin dashboard error", e);
     res.status(500).json({ message: "Server error" });
   }
 };
@@ -77,35 +76,27 @@ exports.toggleBlockUser = async (req, res) => {
    TRADER HISTORY APPROVAL
 ===================================================== */
 exports.approveTradingHistory = async (req, res) => {
-  try {
-    const { traderId } = req.body;
+  const { traderId } = req.body;
 
-    const trader = await User.findOne({ _id: traderId, role: "trader" });
-    if (!trader) return res.status(404).json({ message: "Trader not found" });
+  const trader = await User.findOne({ _id: traderId, role: "trader" });
+  if (!trader) return res.status(404).json({ message: "Trader not found" });
 
-    trader.isHistoryApproved = true;
-    await trader.save();
+  trader.traderVerificationStatus = "APPROVED";
+  await trader.save();
 
-    res.json({ success: true, message: "Trading history approved" });
-  } catch (e) {
-    res.status(500).json({ message: "Server error" });
-  }
+  res.json({ success: true, message: "Trading history approved" });
 };
 
 exports.rejectTradingHistory = async (req, res) => {
-  try {
-    const { traderId } = req.body;
+  const { traderId } = req.body;
 
-    const trader = await User.findOne({ _id: traderId, role: "trader" });
-    if (!trader) return res.status(404).json({ message: "Trader not found" });
+  const trader = await User.findOne({ _id: traderId, role: "trader" });
+  if (!trader) return res.status(404).json({ message: "Trader not found" });
 
-    trader.isHistoryApproved = false;
-    await trader.save();
+  trader.traderVerificationStatus = "REJECTED";
+  await trader.save();
 
-    res.json({ success: true, message: "Trading history rejected" });
-  } catch (e) {
-    res.status(500).json({ message: "Server error" });
-  }
+  res.json({ success: true, message: "Trading history rejected" });
 };
 
 /* =====================================================
