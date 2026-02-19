@@ -192,6 +192,19 @@ exports.login = async (req, res) => {
 =========================== */
 exports.me = async (req, res) => {
   try {
+    /* 🔥 master_admin safe */
+    if (req.user.id === "master_admin") {
+      res.set("Cache-Control", "no-store");
+
+      return res.json({
+        success: true,
+        user: {
+          role: "admin",
+          name: "System Admin",
+        },
+      });
+    }
+
     const user = await User.findById(req.user._id).select("-password");
 
     if (!user) {
@@ -205,6 +218,7 @@ exports.me = async (req, res) => {
       user,
     });
   } catch (e) {
+    console.error("ME Error:", e);
     res.status(500).json({ message: "Server error" });
   }
 };
@@ -221,6 +235,7 @@ exports.changePassword = async (req, res) => {
     }
 
     const user = await User.findById(req.user._id);
+
     if (!user || !user.password) {
       return res.status(404).json({ message: "User not found" });
     }
@@ -242,6 +257,7 @@ exports.changePassword = async (req, res) => {
       message: "Password updated successfully",
     });
   } catch (e) {
+    console.error("Change Password Error:", e);
     res.status(500).json({ message: "Server error" });
   }
 };

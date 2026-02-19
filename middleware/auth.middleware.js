@@ -10,6 +10,7 @@ exports.protect = async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
 
+    /* ❌ No header */
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
       return res.status(401).json({
         success: false,
@@ -18,10 +19,19 @@ exports.protect = async (req, res, next) => {
     }
 
     const token = authHeader.split(" ")[1];
+
+    if (!token) {
+      return res.status(401).json({
+        success: false,
+        message: "Token missing",
+      });
+    }
+
     let decoded;
 
+    /* ❌ Invalid token */
     try {
-      decoded = jwt.verify(token, process.env.JWT_SECRET);
+      decoded = jwt.verify(token, JWT_SECRET);
     } catch (err) {
       return res.status(401).json({
         success: false,
@@ -31,10 +41,10 @@ exports.protect = async (req, res, next) => {
 
     /* ===============================
        MASTER SYSTEM PANEL ADMIN
-       (NO DB USER REQUIRED)
     =============================== */
     if (decoded.id === "master_admin") {
       req.user = {
+        _id: "master_admin", // 🔥 prevents /me crash
         id: "master_admin",
         role: "admin",
         name: "System Panel",
@@ -54,7 +64,7 @@ exports.protect = async (req, res, next) => {
       });
     }
 
-    // 🚫 BLOCKED USER CHECK
+    /* 🚫 BLOCKED USER CHECK */
     if (user.isBlocked) {
       return res.status(403).json({
         success: false,
@@ -65,6 +75,8 @@ exports.protect = async (req, res, next) => {
     req.user = user;
     next();
   } catch (error) {
+    console.error("Protect Middleware Error:", error);
+
     return res.status(401).json({
       success: false,
       message: "Authorization failed",
@@ -85,7 +97,7 @@ exports.requireRole = (role) => {
         });
       }
 
-      // ✅ master admin always allowed
+      /* ✅ master admin always allowed */
       if (req.user.id === "master_admin") {
         return next();
       }
@@ -99,6 +111,8 @@ exports.requireRole = (role) => {
 
       next();
     } catch (err) {
+      console.error("RequireRole Error:", err);
+
       return res.status(403).json({
         success: false,
         message: "Forbidden",
