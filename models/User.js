@@ -2,9 +2,9 @@ const mongoose = require("mongoose");
 
 /*
   USER ROLES:
-  - investor  → normal user who deposits & hires traders
-  - trader    → professional trader with security money & ads
-  - admin     → system / control panel (never exposed publicly)
+  - investor  → deposits & hires traders
+  - trader    → security money + ads + earnings
+  - admin     → system/control panel
 */
 
 const userSchema = new mongoose.Schema(
@@ -32,7 +32,7 @@ const userSchema = new mongoose.Schema(
       lowercase: true,
       trim: true,
       unique: true,
-      sparse: true, // allow null
+      sparse: true,
       default: null,
     },
 
@@ -46,21 +46,19 @@ const userSchema = new mongoose.Schema(
     password: {
       type: String,
       required: true,
-      select: false, // never expose
+      select: false,
     },
 
     /* =========================
        SYSTEM IDS
     ========================= */
 
-    // Investor ID → UID0001
     uid: {
       type: Number,
       default: null,
       index: true,
     },
 
-    // Trader ID → TID0001
     tid: {
       type: Number,
       default: null,
@@ -72,7 +70,7 @@ const userSchema = new mongoose.Schema(
     ========================= */
 
     profilePhoto: {
-      type: String, // base64 or CDN url
+      type: String,
       default: "",
     },
 
@@ -80,58 +78,64 @@ const userSchema = new mongoose.Schema(
        INVESTOR RELATED
     ========================= */
 
-    // Investor ka current usable balance
-    // ❗ direct edit NOT allowed (only via transactions)
     balance: {
       type: Number,
-      default: 0,
+      default: function () {
+        return this.role === "investor" ? 0 : undefined;
+      },
       min: 0,
     },
 
     /* =========================
-       TRADER RELATED
+       TRADER RELATED (FIXED ✅)
+       👉 Only exists for TRADER
     ========================= */
 
-    // Security money deposited by trader
     securityMoney: {
       type: Number,
-      default: 0,
+      default: function () {
+        return this.role === "trader" ? 0 : undefined;
+      },
       min: 0,
     },
 
-    // Trader level (1 → 10)
-    // ⚠️ Only system/admin can change
     traderLevel: {
       type: Number,
-      default: 1,
+      default: function () {
+        return this.role === "trader" ? 1 : undefined;
+      },
       min: 1,
       max: 10,
     },
 
-    // Trader verification (2-year history approval)
     traderVerificationStatus: {
       type: String,
       enum: ["NOT_SUBMITTED", "PENDING", "APPROVED", "REJECTED"],
-      default: "NOT_SUBMITTED",
+      default: function () {
+        return this.role === "trader"
+          ? "NOT_SUBMITTED"
+          : undefined;
+      },
     },
 
-    // Uploaded trading history file (image/pdf)
     traderHistoryFile: {
       type: String,
-      default: "",
+      default: function () {
+        return this.role === "trader" ? "" : undefined;
+      },
     },
 
-    // Total earnings (read-only stats)
     traderTotalEarning: {
       type: Number,
-      default: 0,
+      default: function () {
+        return this.role === "trader" ? 0 : undefined;
+      },
     },
 
     /* =========================
        ACCOUNT CONTROL
     ========================= */
 
-    // Block / unblock user
     isBlocked: {
       type: Boolean,
       default: false,
@@ -153,12 +157,12 @@ const userSchema = new mongoose.Schema(
     },
   },
   {
-    timestamps: true, // createdAt / updatedAt
+    timestamps: true,
   }
 );
 
 /* =========================
-   INDEXES (PERFORMANCE)
+   INDEXES
 ========================= */
 userSchema.index({ role: 1, uid: 1 });
 userSchema.index({ role: 1, tid: 1 });
