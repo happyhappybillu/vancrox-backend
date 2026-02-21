@@ -21,7 +21,7 @@ const signToken = (user) => {
 =========================== */
 exports.registerInvestor = async (req, res) => {
   try {
-    const { name, email, mobile, password } = req.body;
+    let { name, email, mobile, password } = req.body;
 
     if (!name || !password) {
       return res.status(400).json({ message: "Name & password required" });
@@ -30,6 +30,11 @@ exports.registerInvestor = async (req, res) => {
     if (!email && !mobile) {
       return res.status(400).json({ message: "Email or mobile required" });
     }
+
+    // ✅ NORMALIZE INPUTS
+    name = String(name).trim();
+    email = email ? String(email).trim().toLowerCase() : null;
+    mobile = mobile ? String(mobile).trim() : null;
 
     const exists = await User.findOne({
       $or: [
@@ -50,8 +55,8 @@ exports.registerInvestor = async (req, res) => {
     const user = await User.create({
       role: "investor",
       name,
-      email: email || null,
-      mobile: mobile || null,
+      email,
+      mobile,
       password: hashedPassword,
       uid: nextUid,
       balance: 0,
@@ -66,18 +71,18 @@ exports.registerInvestor = async (req, res) => {
       role: "investor",
       uid: user.uid,
     });
+
   } catch (e) {
     console.error("Investor Register Error:", e);
     res.status(500).json({ message: "Server error" });
   }
 };
-
 /* ===========================
    TRADER REGISTER
 =========================== */
 exports.registerTrader = async (req, res) => {
   try {
-    const { name, email, mobile, password } = req.body;
+    let { name, email, mobile, password } = req.body;
 
     if (!name || !password) {
       return res.status(400).json({ message: "Name & password required" });
@@ -86,6 +91,11 @@ exports.registerTrader = async (req, res) => {
     if (!email && !mobile) {
       return res.status(400).json({ message: "Email or mobile required" });
     }
+
+    // ✅ NORMALIZE INPUTS
+    name = String(name).trim();
+    email = email ? String(email).trim().toLowerCase() : null;
+    mobile = mobile ? String(mobile).trim() : null;
 
     const exists = await User.findOne({
       $or: [
@@ -106,8 +116,8 @@ exports.registerTrader = async (req, res) => {
     const user = await User.create({
       role: "trader",
       name,
-      email: email || null,
-      mobile: mobile || null,
+      email,
+      mobile,
       password: hashedPassword,
       tid: nextTid,
       traderLevel: 1,
@@ -124,6 +134,7 @@ exports.registerTrader = async (req, res) => {
       role: "trader",
       tid: user.tid,
     });
+
   } catch (e) {
     console.error("Trader Register Error:", e);
     res.status(500).json({ message: "Server error" });
@@ -141,17 +152,22 @@ exports.login = async (req, res) => {
       return res.status(400).json({ message: "Password required" });
     }
 
-    const identifier = emailOrMobile || email || mobile;
+    let identifier = emailOrMobile || email || mobile;
 
     if (!identifier) {
       return res.status(400).json({ message: "Email or mobile required" });
     }
 
+    // ✅ FIX → normalize input
+    identifier = String(identifier).trim().toLowerCase();
+
     const user = await User.findOne({
-      $or: [{ email: identifier }, { mobile: identifier }],
+      $or: [
+        { email: identifier },
+        { mobile: identifier }
+      ],
     });
 
-    /* 🔥 CRASH-PROOF CHECK */
     if (!user || !user.password) {
       return res.status(400).json({ message: "Invalid credentials" });
     }
