@@ -166,7 +166,7 @@ exports.login = async (req, res) => {
         { email: identifier },
         { mobile: identifier }
       ],
-    });
+    }).select("+password");
 
     if (!user || !user.password) {
       return res.status(400).json({ message: "Invalid credentials" });
