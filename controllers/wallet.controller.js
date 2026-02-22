@@ -4,11 +4,11 @@ const User = require("../models/User");
 
 /* ===========================
    GET SYSTEM ADDRESSES
-   =========================== */
-// investor / trader (copy only)
+=========================== */
 exports.getSystemAddresses = async (req, res) => {
   try {
     let addr = await SystemAddress.findOne();
+
     if (!addr) {
       addr = await SystemAddress.create({
         erc20: "",
@@ -26,13 +26,14 @@ exports.getSystemAddresses = async (req, res) => {
       },
     });
   } catch (e) {
+    console.error("SystemAddress Error:", e);
     res.status(500).json({ message: "Server error" });
   }
 };
 
 /* ===========================
    INVESTOR DEPOSIT
-   =========================== */
+=========================== */
 exports.deposit = async (req, res) => {
   try {
     const { amount, proof } = req.body;
@@ -40,6 +41,7 @@ exports.deposit = async (req, res) => {
     if (!amount || amount <= 0) {
       return res.status(400).json({ message: "Invalid amount" });
     }
+
     if (!proof) {
       return res.status(400).json({ message: "Proof image required" });
     }
@@ -55,47 +57,50 @@ exports.deposit = async (req, res) => {
 
     res.json({
       success: true,
-      message: "Deposit submitted, pending system approval",
+      message: "Deposit submitted, pending approval",
       tx,
     });
   } catch (e) {
+    console.error("Deposit Error:", e);
     res.status(500).json({ message: "Server error" });
   }
 };
 
 /* ===========================
    INVESTOR WITHDRAW
-   =========================== */
+=========================== */
 exports.withdraw = async (req, res) => {
   try {
     const { amount, withdrawTo } = req.body;
 
-    if (!amount || amount < 100) {
+    if (!amount || amount <= 0) {
+      return res.status(400).json({ message: "Invalid amount" });
+    }
+
+    if (amount < 100) {
       return res.status(400).json({ message: "Minimum withdraw is 100" });
     }
+
     if (!withdrawTo) {
       return res.status(400).json({ message: "Withdraw address required" });
     }
 
-    // 🔒 balance calculation (SUCCESS only)
-    const txs = await Transaction.find({
-      userId: req.user._id,
-      status: "SUCCESS",
-    });
+    const user = await User.findById(req.user._id);
 
-    let balance = 0;
-    txs.forEach((t) => {
-      if (t.type === "DEPOSIT") balance += t.amount;
-      if (t.type === "WITHDRAW") balance -= t.amount;
-      if (t.type === "PROFIT_CREDIT") balance += t.amount;
-    });
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
 
-    if (balance < amount) {
+    if (user.balance < amount) {
       return res.status(400).json({ message: "Insufficient balance" });
     }
 
+    /* 🔒 CUT BALANCE INSTANT */
+    user.balance -= Number(amount);
+    await user.save();
+
     const tx = await Transaction.create({
-      userId: req.user._id,
+      userId: user._id,
       type: "WITHDRAW",
       amount: Number(amount),
       withdrawTo,
@@ -109,13 +114,14 @@ exports.withdraw = async (req, res) => {
       tx,
     });
   } catch (e) {
+    console.error("Withdraw Error:", e);
     res.status(500).json({ message: "Server error" });
   }
 };
 
 /* ===========================
    TRADER SECURITY DEPOSIT
-   =========================== */
+=========================== */
 exports.traderSecurityDeposit = async (req, res) => {
   try {
     const { amount, proof } = req.body;
@@ -123,6 +129,7 @@ exports.traderSecurityDeposit = async (req, res) => {
     if (!amount || amount < 100) {
       return res.status(400).json({ message: "Minimum security deposit is 100" });
     }
+
     if (!proof) {
       return res.status(400).json({ message: "Proof image required" });
     }
@@ -142,6 +149,7 @@ exports.traderSecurityDeposit = async (req, res) => {
       tx,
     });
   } catch (e) {
+    console.error("Security Deposit Error:", e);
     res.status(500).json({ message: "Server error" });
   }
 };

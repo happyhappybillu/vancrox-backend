@@ -2,6 +2,8 @@ const TraderAd = require("../models/TraderAd");
 const HireTrade = require("../models/HireTrade");
 const Transaction = require("../models/Transaction");
 const User = require("../models/User");
+const SystemAddress = require("../models/SystemAddress");
+const WithdrawRequest = require("../models/WithdrawRequest");
 
 /* ======================================================
    INVESTOR PROFILE
@@ -39,6 +41,7 @@ exports.topTraders = async (req, res) => {
 exports.hireTrader = async (req, res) => {
   try {
     const { traderAdId } = req.body;
+
     if (!traderAdId) {
       return res.status(400).json({ message: "TraderAd ID required" });
     }
@@ -53,7 +56,6 @@ exports.hireTrader = async (req, res) => {
       return res.status(404).json({ message: "Investor not found" });
     }
 
-    // balance check
     if (investor.balance < ad.tradeAmount) {
       return res.status(400).json({ message: "Insufficient balance" });
     }
@@ -94,7 +96,7 @@ exports.hireTrader = async (req, res) => {
 };
 
 /* ======================================================
-   MY TRADERS (ALL STATES)
+   MY TRADERS
 ====================================================== */
 exports.myTraders = async (req, res) => {
   try {
@@ -126,8 +128,8 @@ exports.history = async (req, res) => {
 
 /* ======================================================
    WITHDRAW REQUEST
-   - balance cut instantly
-   - pending until admin approve/reject
+   ✔ Balance cut instantly
+   ✔ Pending approval
 ====================================================== */
 exports.withdrawRequest = async (req, res) => {
   try {
@@ -147,12 +149,20 @@ exports.withdrawRequest = async (req, res) => {
       return res.status(400).json({ message: "Insufficient balance" });
     }
 
-    /* 🔒 CUT IMMEDIATELY */
+    /* 🔒 CUT BALANCE IMMEDIATELY */
     investor.balance -= amount;
     await investor.save();
 
-    /* 🔹 CREATE TRANSACTION (PENDING) */
-    const tx = await Transaction.create({
+    /* 🔹 CREATE WITHDRAW REQUEST */
+    const request = await WithdrawRequest.create({
+      investorId: investor._id,
+      amount,
+      withdrawTo,
+      status: "PENDING",
+    });
+
+    /* 🔹 TRANSACTION LOG */
+    await Transaction.create({
       userId: investor._id,
       type: "WITHDRAW",
       amount,
@@ -162,11 +172,72 @@ exports.withdrawRequest = async (req, res) => {
 
     res.json({
       success: true,
-      message: "Withdraw request submitted. Pending admin approval.",
-      tx,
+      message: "Withdraw request submitted. Pending approval.",
+      request,
     });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Server error" });
+  }
+};
+
+/* ======================================================
+   SYSTEM DEPOSIT ADDRESSES
+====================================================== */
+exports.systemAddress = async (req, res) => {
+  try {
+    const addresses = await SystemAddress.findOne();
+
+    res.json({
+      success: true,
+      addresses: addresses || {},
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to load system addresses" });
+  }
+};
+
+/* ======================================================
+   SAVE WITHDRAWAL ADDRESS (INVESTOR PROFILE)
+====================================================== */
+exports.saveWithdrawAddress = async (req, res) => {
+  try {
+    const { erc20, trc20, bep20 } = req.body;
+
+    const investor = await User.findById(req.user._id);
+
+    investor.withdrawAddresses = {
+      erc20: erc20 || "",
+      trc20: trc20 || "",
+      bep20: bep20 || "",
+    };
+
+    await investor.save();
+
+    res.json({
+      success: true,
+      message: "Withdrawal addresses saved",
+      addresses: investor.withdrawAddresses,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to save addresses" });
+  }
+};
+
+/* ======================================================
+   GET SAVED WITHDRAWAL ADDRESS
+====================================================== */
+exports.getWithdrawAddress = async (req, res) => {
+  try {
+    const investor = await User.findById(req.user._id);
+
+    res.json({
+      success: true,
+      addresses: investor.withdrawAddresses || {},
+    });
+  } catch (err) {
+    res.status(500).json({ message: "Failed to load addresses" });
   }
 };

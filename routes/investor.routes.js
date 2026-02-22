@@ -44,6 +44,13 @@ router.get(
   requireRole("investor"),
   investor.history
 );
+// system addresses
+router.get(
+  "/system-address",
+  protect,
+  requireRole("investor"),
+  investor.systemAddress
+);
 
 // withdraw
 router.post(
