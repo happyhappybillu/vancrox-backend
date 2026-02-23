@@ -3,69 +3,31 @@ const investor = require("../controllers/investor.controller");
 const notification = require("../controllers/notification.controller");
 const { protect, requireRole } = require("../middleware/auth.middleware");
 
-/* ================= INVESTOR ================= */
+/* 🔐 Lock all routes */
+router.use(protect, requireRole("investor"));
 
-// profile
-router.get(
-  "/profile",
-  protect,
-  requireRole("investor"),
-  investor.profile
-);
+/* ================= PROFILE ================= */
+router.get("/profile", investor.profile);
 
-// top traders
-router.get(
-  "/top-traders",
-  protect,
-  requireRole("investor"),
-  investor.topTraders
-);
+/* ================= TRADERS ================= */
+router.get("/top-traders", investor.topTraders);
 
-// hire trader
-router.post(
-  "/hire",
-  protect,
-  requireRole("investor"),
-  investor.hireTrader
-);
+/* ================= HIRE ================= */
+router.post("/hire", investor.hireTrader);
 
-// my traders
-router.get(
-  "/my-traders",
-  protect,
-  requireRole("investor"),
-  investor.myTraders
-);
+/* ================= MY TRADERS ================= */
+router.get("/my-traders", investor.myTraders);
 
-// history
-router.get(
-  "/history",
-  protect,
-  requireRole("investor"),
-  investor.history
-);
-// system addresses
-router.get(
-  "/system-address",
-  protect,
-  requireRole("investor"),
-  investor.systemAddress
-);
+/* ================= HISTORY ================= */
+router.get("/history", investor.history);
 
-// withdraw
-router.post(
-  "/withdraw",
-  protect,
-  requireRole("investor"),
-  investor.withdrawRequest
-);
+/* ================= SYSTEM ADDRESS ================= */
+router.get("/system-address", investor.systemAddress);
 
-// notifications
-router.get(
-  "/notifications",
-  protect,
-  requireRole("investor"),
-  notification.getInvestorNotifications
-);
+/* ================= WITHDRAW ================= */
+router.post("/withdraw", investor.withdrawRequest);
+
+/* ================= NOTIFICATIONS ================= */
+router.get("/notifications", notification.getInvestorNotifications);
 
 module.exports = router;

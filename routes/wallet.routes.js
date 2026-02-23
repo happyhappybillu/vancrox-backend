@@ -3,20 +3,18 @@ const wallet = require("../controllers/wallet.controller");
 const { protect, requireRole } = require("../middleware/auth.middleware");
 
 /* ===========================
-   COMMON
-   =========================== */
-
-// system deposit addresses (copy only)
+   COMMON (Investor / Trader)
+=========================== */
 router.get(
   "/system-address",
   protect,
+  requireRole("investor", "trader"),
   wallet.getSystemAddresses
 );
 
 /* ===========================
    INVESTOR
-   =========================== */
-
+=========================== */
 router.post(
   "/deposit",
   protect,
@@ -33,8 +31,7 @@ router.post(
 
 /* ===========================
    TRADER
-   =========================== */
-
+=========================== */
 router.post(
   "/security-deposit",
   protect,

@@ -2,9 +2,6 @@ const mongoose = require("mongoose");
 
 const withdrawRequestSchema = new mongoose.Schema(
   {
-    /* =========================
-       USER INFO
-    ========================= */
     userId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
@@ -19,9 +16,6 @@ const withdrawRequestSchema = new mongoose.Schema(
       index: true,
     },
 
-    /* =========================
-       WITHDRAW DETAILS
-    ========================= */
     amount: {
       type: Number,
       required: true,
@@ -44,26 +38,27 @@ const withdrawRequestSchema = new mongoose.Schema(
       required: true,
     },
 
-    /* =========================
-       STATUS FLOW (CRITICAL)
-       =========================
-       PENDING   → waiting system approval
-       APPROVED  → balance already deducted
-       REJECTED  → auto refund balance
-    ========================= */
     status: {
       type: String,
-      enum: ["PENDING", "APPROVED", "REJECTED"],
+      enum: ["PENDING", "SUCCESS", "REJECTED"],
       default: "PENDING",
       index: true,
     },
 
-    /* =========================
-       SYSTEM ACTION LOG
-    ========================= */
     systemNote: {
       type: String,
       default: "",
+    },
+
+    reviewedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
+
+    reviewedAt: {
+      type: Date,
+      default: null,
     },
 
     approvedAt: {
@@ -76,9 +71,7 @@ const withdrawRequestSchema = new mongoose.Schema(
       default: null,
     },
   },
-  {
-    timestamps: true,
-  }
+  { timestamps: true }
 );
 
 module.exports = mongoose.model("WithdrawRequest", withdrawRequestSchema);

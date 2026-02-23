@@ -11,17 +11,18 @@ const WithdrawRequest = require("../models/WithdrawRequest");
 exports.profile = async (req, res) => {
   try {
     const investor = await User.findById(req.user._id).select(
-      "name email uid balance profilePhoto role"
+      "name email uid balance profilePhoto role withdrawAddresses"
     );
 
     res.json({ success: true, investor });
   } catch (err) {
+    console.error("Investor Profile Error:", err);
     res.status(500).json({ message: "Server error" });
   }
 };
 
 /* ======================================================
-   TOP TRADERS (LIVE ADS)
+   TOP TRADERS
 ====================================================== */
 exports.topTraders = async (req, res) => {
   try {
@@ -31,12 +32,13 @@ exports.topTraders = async (req, res) => {
 
     res.json({ success: true, ads });
   } catch (err) {
+    console.error("TopTraders Error:", err);
     res.status(500).json({ message: "Server error" });
   }
 };
 
 /* ======================================================
-   HIRE TRADER (CONFIRM ONLY FLOW)
+   HIRE TRADER (CONFIRM ONLY)
 ====================================================== */
 exports.hireTrader = async (req, res) => {
   try {
@@ -52,16 +54,23 @@ exports.hireTrader = async (req, res) => {
     }
 
     const investor = await User.findById(req.user._id);
+
     if (!investor) {
       return res.status(404).json({ message: "Investor not found" });
+    }
+
+    if (investor.isBlocked) {
+      return res.status(403).json({ message: "Account blocked" });
     }
 
     if (investor.balance < ad.tradeAmount) {
       return res.status(400).json({ message: "Insufficient balance" });
     }
 
-    /* 🔒 CUT BALANCE INSTANT */
-    investor.balance -= ad.tradeAmount;
+    const amount = Number(ad.tradeAmount);
+
+    /* 🔒 CUT BALANCE */
+    investor.balance -= amount;
     await investor.save();
 
     /* 🔹 CREATE HIRE TRADE */
@@ -69,18 +78,20 @@ exports.hireTrader = async (req, res) => {
       investorId: investor._id,
       traderId: ad.traderId,
       traderAdId: ad._id,
-      amount: ad.tradeAmount,
+      amount,
       profitPercent: ad.profitPercent,
       status: "WAITING_TRADER_CONFIRMATION",
       traderConfirmation: "PENDING",
     });
 
-    /* 🔹 TRANSACTION LOG */
+    /* 🔹 TRANSACTION LOG ✅ FIXED */
     await Transaction.create({
       userId: investor._id,
-      type: "HIRE",
-      amount: ad.tradeAmount,
+      role: "investor",
+      type: "TRADE_LOCK",
+      amount,
       status: "SUCCESS",
+      hireTradeId: hire._id,
       note: "Amount locked – waiting for trader confirmation",
     });
 
@@ -90,7 +101,7 @@ exports.hireTrader = async (req, res) => {
       hire,
     });
   } catch (err) {
-    console.error(err);
+    console.error("HireTrader Error:", err);
     res.status(500).json({ message: "Server error" });
   }
 };
@@ -107,6 +118,7 @@ exports.myTraders = async (req, res) => {
 
     res.json({ success: true, list });
   } catch (err) {
+    console.error("MyTraders Error:", err);
     res.status(500).json({ message: "Server error" });
   }
 };
@@ -122,21 +134,26 @@ exports.history = async (req, res) => {
 
     res.json({ success: true, tx });
   } catch (err) {
+    console.error("History Error:", err);
     res.status(500).json({ message: "Server error" });
   }
 };
 
 /* ======================================================
    WITHDRAW REQUEST
-   ✔ Balance cut instantly
-   ✔ Pending approval
 ====================================================== */
 exports.withdrawRequest = async (req, res) => {
   try {
-    const { amount, withdrawTo } = req.body;
+    let { amount, withdrawTo } = req.body;
+
+    amount = Number(amount);
 
     if (!amount || amount <= 0) {
       return res.status(400).json({ message: "Invalid amount" });
+    }
+
+    if (amount < 100) {
+      return res.status(400).json({ message: "Minimum withdraw is 100" });
     }
 
     if (!withdrawTo) {
@@ -145,15 +162,23 @@ exports.withdrawRequest = async (req, res) => {
 
     const investor = await User.findById(req.user._id);
 
+    if (!investor) {
+      return res.status(404).json({ message: "Investor not found" });
+    }
+
+    if (investor.isBlocked) {
+      return res.status(403).json({ message: "Account blocked" });
+    }
+
     if (investor.balance < amount) {
       return res.status(400).json({ message: "Insufficient balance" });
     }
 
-    /* 🔒 CUT BALANCE IMMEDIATELY */
+    /* 🔒 CUT BALANCE */
     investor.balance -= amount;
     await investor.save();
 
-    /* 🔹 CREATE WITHDRAW REQUEST */
+    /* 🔹 WITHDRAW REQUEST */
     const request = await WithdrawRequest.create({
       investorId: investor._id,
       amount,
@@ -161,13 +186,15 @@ exports.withdrawRequest = async (req, res) => {
       status: "PENDING",
     });
 
-    /* 🔹 TRANSACTION LOG */
+    /* 🔹 TRANSACTION */
     await Transaction.create({
       userId: investor._id,
+      role: "investor",
       type: "WITHDRAW",
       amount,
       status: "PENDING",
-      withdrawTo,
+      withdrawAddress: withdrawTo,
+      note: "Withdraw request pending approval",
     });
 
     res.json({
@@ -176,30 +203,28 @@ exports.withdrawRequest = async (req, res) => {
       request,
     });
   } catch (err) {
-    console.error(err);
+    console.error("Withdraw Error:", err);
     res.status(500).json({ message: "Server error" });
   }
 };
 
 /* ======================================================
-   SYSTEM DEPOSIT ADDRESSES
+   SYSTEM ADDRESSES
 ====================================================== */
 exports.systemAddress = async (req, res) => {
   try {
-    const addresses = await SystemAddress.findOne();
+    let addresses = await SystemAddress.findOne();
+    if (!addresses) addresses = await SystemAddress.create({});
 
-    res.json({
-      success: true,
-      addresses: addresses || {},
-    });
+    res.json({ success: true, addresses });
   } catch (err) {
-    console.error(err);
+    console.error("SystemAddress Error:", err);
     res.status(500).json({ message: "Failed to load system addresses" });
   }
 };
 
 /* ======================================================
-   SAVE WITHDRAWAL ADDRESS (INVESTOR PROFILE)
+   SAVE WITHDRAW ADDRESSES
 ====================================================== */
 exports.saveWithdrawAddress = async (req, res) => {
   try {
@@ -221,13 +246,13 @@ exports.saveWithdrawAddress = async (req, res) => {
       addresses: investor.withdrawAddresses,
     });
   } catch (err) {
-    console.error(err);
+    console.error("SaveWithdrawAddress Error:", err);
     res.status(500).json({ message: "Failed to save addresses" });
   }
 };
 
 /* ======================================================
-   GET SAVED WITHDRAWAL ADDRESS
+   GET WITHDRAW ADDRESSES
 ====================================================== */
 exports.getWithdrawAddress = async (req, res) => {
   try {
@@ -238,6 +263,7 @@ exports.getWithdrawAddress = async (req, res) => {
       addresses: investor.withdrawAddresses || {},
     });
   } catch (err) {
+    console.error("GetWithdrawAddress Error:", err);
     res.status(500).json({ message: "Failed to load addresses" });
   }
 };

@@ -25,7 +25,7 @@ const depositRequestSchema = new mongoose.Schema(
     amount: {
       type: Number,
       required: true,
-      min: 1,
+      min: 50, // ✅ Minimum deposit enforced
     },
 
     coin: {
@@ -43,22 +43,27 @@ const depositRequestSchema = new mongoose.Schema(
        PROOF (MANDATORY)
     ========================= */
     proofImage: {
-      type: String, // base64 / image url
+      type: String,
       required: true,
     },
 
     /* =========================
-       STATUS FLOW (CRITICAL)
-       =========================
-       PENDING   → waiting system approval
-       APPROVED  → balance credited
-       REJECTED  → no balance credit
+       STATUS FLOW
     ========================= */
     status: {
       type: String,
       enum: ["PENDING", "APPROVED", "REJECTED"],
       default: "PENDING",
       index: true,
+    },
+
+    /* =========================
+       TRANSACTION LINK
+    ========================= */
+    transactionId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Transaction",
+      default: null,
     },
 
     /* =========================
