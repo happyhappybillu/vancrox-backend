@@ -18,12 +18,24 @@ exports.dashboard = async (req, res) => {
     const pendingProofs = await HireTrade.countDocuments({ status: "PROOF_PENDING" });
     const openTickets = await SupportTicket.countDocuments({ status: "OPEN" });
 
+    const deposits = await Transaction.aggregate([
+      { $match: { type: "DEPOSIT", status: "SUCCESS" } },
+      { $group: { _id: null, total: { $sum: "$amount" } } }
+    ]);
+
+    const withdraws = await Transaction.aggregate([
+      { $match: { type: "WITHDRAW", status: "SUCCESS" } },
+      { $group: { _id: null, total: { $sum: "$amount" } } }
+    ]);
+
     res.json({
       success: true,
       totalInvestors,
       totalTraders,
       pendingRequests: pendingTx + pendingProofs,
       openTickets,
+      totalDeposits: deposits[0]?.total || 0,
+      totalWithdraws: withdraws[0]?.total || 0
     });
   } catch (e) {
     console.error("Admin dashboard error", e);
@@ -36,8 +48,11 @@ exports.dashboard = async (req, res) => {
 ===================================================== */
 exports.getUsers = async (req, res) => {
   try {
-    const { role } = req.query; // investor / trader
-    const filter = role ? { role } : { role: { $ne: "admin" } };
+    const { role } = req.query;
+
+    const filter = role
+      ? { role }
+      : { role: { $ne: "admin" } };
 
     const users = await User.find(filter)
       .select("-password")
@@ -45,6 +60,7 @@ exports.getUsers = async (req, res) => {
 
     res.json({ success: true, users });
   } catch (e) {
+    console.error("Get users error:", e);
     res.status(500).json({ message: "Server error" });
   }
 };
@@ -73,41 +89,72 @@ exports.toggleBlockUser = async (req, res) => {
 };
 
 /* =====================================================
-   TRADER HISTORY APPROVAL
+   USER DETAILS (History View)
 ===================================================== */
-exports.approveTradingHistory = async (req, res) => {
-  const { traderId } = req.body;
+exports.getUserDetails = async (req, res) => {
+  try {
+    const { userId } = req.params;
 
-  const trader = await User.findOne({ _id: traderId, role: "trader" });
-  if (!trader) return res.status(404).json({ message: "Trader not found" });
+    const user = await User.findById(userId).select("-password");
+    if (!user) return res.status(404).json({ message: "User not found" });
 
-  trader.traderVerificationStatus = "APPROVED";
-  await trader.save();
+    const history = await Transaction.find({ userId })
+      .sort({ createdAt: -1 });
 
-  res.json({ success: true, message: "Trading history approved" });
-};
-
-exports.rejectTradingHistory = async (req, res) => {
-  const { traderId } = req.body;
-
-  const trader = await User.findOne({ _id: traderId, role: "trader" });
-  if (!trader) return res.status(404).json({ message: "Trader not found" });
-
-  trader.traderVerificationStatus = "REJECTED";
-  await trader.save();
-
-  res.json({ success: true, message: "Trading history rejected" });
+    res.json({ success: true, user, history });
+  } catch (e) {
+    res.status(500).json({ message: "Server error" });
+  }
 };
 
 /* =====================================================
-   PENDING TRANSACTIONS (DEPOSIT / WITHDRAW / SECURITY)
+   TRADER HISTORY APPROVAL
+===================================================== */
+exports.approveTradingHistory = async (req, res) => {
+  try {
+    const { traderId } = req.body;
+
+    const trader = await User.findOne({ _id: traderId, role: "trader" });
+    if (!trader) return res.status(404).json({ message: "Trader not found" });
+
+    trader.traderVerificationStatus = "APPROVED";
+    await trader.save();
+
+    res.json({ success: true, message: "Trading history approved" });
+  } catch (e) {
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+exports.rejectTradingHistory = async (req, res) => {
+  try {
+    const { traderId } = req.body;
+
+    const trader = await User.findOne({ _id: traderId, role: "trader" });
+    if (!trader) return res.status(404).json({ message: "Trader not found" });
+
+    trader.traderVerificationStatus = "REJECTED";
+    await trader.save();
+
+    res.json({ success: true, message: "Trading history rejected" });
+  } catch (e) {
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+/* =====================================================
+   PENDING TRANSACTIONS
 ===================================================== */
 exports.getPendingTransactions = async (req, res) => {
-  const list = await Transaction.find({ status: "PENDING" })
-    .populate("userId", "name role uid tid email")
-    .sort({ createdAt: -1 });
+  try {
+    const list = await Transaction.find({ status: "PENDING" })
+      .populate("userId", "name role uid tid email balance")
+      .sort({ createdAt: -1 });
 
-  res.json({ success: true, list });
+    res.json({ success: true, list });
+  } catch (e) {
+    res.status(500).json({ message: "Server error" });
+  }
 };
 
 exports.approveTransaction = async (req, res) => {
@@ -119,11 +166,24 @@ exports.approveTransaction = async (req, res) => {
       return res.status(400).json({ message: "Invalid transaction" });
     }
 
+    const user = await User.findById(tx.userId);
+
+    if (tx.type === "DEPOSIT") {
+      user.balance += tx.amount;
+      await user.save();
+    }
+
+    if (tx.type === "SECURITY") {
+      user.securityDeposit += tx.amount;
+      await user.save();
+    }
+
     tx.status = "SUCCESS";
     await tx.save();
 
     res.json({ success: true, message: "Transaction approved" });
   } catch (e) {
+    console.error("Approve TX error:", e);
     res.status(500).json({ message: "Server error" });
   }
 };
@@ -137,13 +197,14 @@ exports.rejectTransaction = async (req, res) => {
       return res.status(400).json({ message: "Invalid transaction" });
     }
 
-    tx.status = "REJECTED";
-    await tx.save();
+    const user = await User.findById(tx.userId);
 
-    // auto refund withdraw
     if (tx.type === "WITHDRAW") {
+      user.balance += tx.amount; // refund
+      await user.save();
+
       await Transaction.create({
-        userId: tx.userId,
+        userId: user._id,
         type: "REFUND",
         amount: tx.amount,
         status: "SUCCESS",
@@ -151,8 +212,12 @@ exports.rejectTransaction = async (req, res) => {
       });
     }
 
+    tx.status = "REJECTED";
+    await tx.save();
+
     res.json({ success: true, message: "Transaction rejected" });
   } catch (e) {
+    console.error("Reject TX error:", e);
     res.status(500).json({ message: "Server error" });
   }
 };
@@ -161,12 +226,16 @@ exports.rejectTransaction = async (req, res) => {
    PROFIT PROOF APPROVAL
 ===================================================== */
 exports.getPendingProofs = async (req, res) => {
-  const list = await HireTrade.find({ status: "PROOF_PENDING" })
-    .populate("traderId", "name tid")
-    .populate("investorId", "name uid")
-    .sort({ createdAt: -1 });
+  try {
+    const list = await HireTrade.find({ status: "PROOF_PENDING" })
+      .populate("traderId", "name tid")
+      .populate("investorId", "name uid")
+      .sort({ createdAt: -1 });
 
-  res.json({ success: true, list });
+    res.json({ success: true, list });
+  } catch (e) {
+    res.status(500).json({ message: "Server error" });
+  }
 };
 
 exports.approveProfitProof = async (req, res) => {
@@ -200,76 +269,118 @@ exports.approveProfitProof = async (req, res) => {
    SYSTEM ADDRESSES
 ===================================================== */
 exports.getAddresses = async (req, res) => {
-  let doc = await SystemAddress.findOne();
-  if (!doc) doc = await SystemAddress.create({});
-  res.json({ success: true, addresses: doc });
+  try {
+    let doc = await SystemAddress.findOne();
+    if (!doc) doc = await SystemAddress.create({});
+    res.json({ success: true, addresses: doc });
+  } catch (e) {
+    res.status(500).json({ message: "Server error" });
+  }
 };
 
 exports.updateAddresses = async (req, res) => {
-  const { erc20, trc20, bep20 } = req.body;
+  try {
+    const { erc20, trc20, bep20 } = req.body;
 
-  let doc = await SystemAddress.findOne();
-  if (!doc) doc = await SystemAddress.create({});
+    let doc = await SystemAddress.findOne();
+    if (!doc) doc = await SystemAddress.create({});
 
-  doc.erc20 = erc20;
-  doc.trc20 = trc20;
-  doc.bep20 = bep20;
-  await doc.save();
+    doc.erc20 = erc20;
+    doc.trc20 = trc20;
+    doc.bep20 = bep20;
 
-  res.json({ success: true, message: "Addresses updated" });
+    await doc.save();
+
+    res.json({ success: true, message: "Addresses updated" });
+  } catch (e) {
+    res.status(500).json({ message: "Server error" });
+  }
 };
 
 /* =====================================================
    NOTIFICATIONS (INVESTOR ONLY)
 ===================================================== */
 exports.createNotification = async (req, res) => {
-  const { title, message, image } = req.body;
+  try {
+    const { title, message, image } = req.body;
 
-  if (!title || !message) {
-    return res.status(400).json({ message: "Title & message required" });
+    if (!title || !message) {
+      return res.status(400).json({ message: "Title & message required" });
+    }
+
+    const n = await Notification.create({
+      title,
+      message,
+      image: image || "",
+      forRole: "investor",
+    });
+
+    res.json({ success: true, notification: n });
+  } catch (e) {
+    res.status(500).json({ message: "Server error" });
   }
-
-  const n = await Notification.create({
-    title,
-    message,
-    image: image || "",
-    forRole: "investor",
-  });
-
-  res.json({ success: true, notification: n });
 };
 
 /* =====================================================
    SUPPORT TICKETS
 ===================================================== */
 exports.getSupportTickets = async (req, res) => {
-  const list = await SupportTicket.find({ status: "OPEN" })
-    .populate("userId", "name role uid tid")
-    .sort({ createdAt: -1 });
+  try {
+    const list = await SupportTicket.find({ status: "OPEN" })
+      .populate("userId", "name role uid tid")
+      .sort({ createdAt: -1 });
 
-  res.json({ success: true, list });
+    res.json({ success: true, list });
+  } catch (e) {
+    res.status(500).json({ message: "Server error" });
+  }
 };
 
 exports.replySupport = async (req, res) => {
-  const { ticketId, reply } = req.body;
+  try {
+    const { ticketId, reply } = req.body;
 
-  const t = await SupportTicket.findById(ticketId);
-  if (!t) return res.status(404).json({ message: "Ticket not found" });
+    const t = await SupportTicket.findById(ticketId);
+    if (!t) return res.status(404).json({ message: "Ticket not found" });
 
-  t.replies.push({ message: reply, at: new Date() });
-  await t.save();
+    t.replies.push({ message: reply, at: new Date() });
+    await t.save();
 
-  res.json({ success: true, message: "Reply sent" });
+    res.json({ success: true, message: "Reply sent" });
+  } catch (e) {
+    res.status(500).json({ message: "Server error" });
+  }
 };
 
 exports.resolveSupport = async (req, res) => {
-  const { ticketId } = req.body;
+  try {
+    const { ticketId } = req.body;
 
-  const t = await SupportTicket.findById(ticketId);
-  if (!t) return res.status(404).json({ message: "Ticket not found" });
+    const t = await SupportTicket.findById(ticketId);
+    if (!t) return res.status(404).json({ message: "Ticket not found" });
 
-  t.status = "RESOLVED";
-  await t.save();
+    t.status = "RESOLVED";
+    await t.save();
 
-  res.json({ success: true, message: "Ticket resolved" });
+    res.json({ success: true, message: "Ticket resolved" });
+  } catch (e) {
+    res.status(500).json({ message: "Server error" });
+  }
+};
+/* =====================================================
+   SINGLE USER TRANSACTION HISTORY
+===================================================== */
+exports.getUserTransactions = async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    const tx = await Transaction.find({ userId })
+      .sort({ createdAt: -1 });
+
+    res.json({ success: true, tx });
+
+  } catch (e) {
+    console.error("User transaction fetch error", e);
+    res.status(500).json({ message: "Server error" });
+  }
 };

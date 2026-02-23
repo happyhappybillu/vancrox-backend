@@ -1,5 +1,6 @@
 const mongoose = require("mongoose");
 
+/* ================= REPLIES ================= */
 const supportReplySchema = new mongoose.Schema(
   {
     senderRole: {
@@ -22,6 +23,7 @@ const supportReplySchema = new mongoose.Schema(
   { _id: false }
 );
 
+/* ================= TICKET ================= */
 const supportTicketSchema = new mongoose.Schema(
   {
     /* =========================
@@ -70,7 +72,6 @@ const supportTicketSchema = new mongoose.Schema(
 
     /* =========================
        STATUS FLOW
-       OPEN -> RESOLVED
     ========================= */
     status: {
       type: String,
@@ -80,11 +81,39 @@ const supportTicketSchema = new mongoose.Schema(
     },
 
     /* =========================
-       REPLIES (BOTH SIDES)
+       CHAT CONVERSATION
     ========================= */
     replies: {
       type: [supportReplySchema],
       default: [],
+    },
+
+    /* =========================
+       UNREAD FLAGS 🔔
+       (UI badges ke liye)
+    ========================= */
+    hasUnreadUser: {
+      type: Boolean,
+      default: false, // admin ke liye
+    },
+
+    hasUnreadSystem: {
+      type: Boolean,
+      default: false, // user ke liye
+    },
+
+    /* =========================
+       LAST MESSAGE PREVIEW ⚡
+       (fast UI load)
+    ========================= */
+    lastMessage: {
+      type: String,
+      default: "",
+    },
+
+    lastMessageAt: {
+      type: Date,
+      default: null,
     },
 
     /* =========================
@@ -99,5 +128,9 @@ const supportTicketSchema = new mongoose.Schema(
     timestamps: true,
   }
 );
+
+/* ================= INDEXES ================= */
+supportTicketSchema.index({ userId: 1, createdAt: -1 });
+supportTicketSchema.index({ status: 1, hasUnreadUser: 1 });
 
 module.exports = mongoose.model("SupportTicket", supportTicketSchema);

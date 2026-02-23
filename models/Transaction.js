@@ -1,15 +1,13 @@
 const mongoose = require("mongoose");
 
 /*
-  TRANSACTION = SINGLE SOURCE OF TRUTH
-  ❌ No balance edit without transaction
+ TRANSACTION = SINGLE SOURCE OF TRUTH
+ ❌ Never change balance without transaction
 */
 
 const transactionSchema = new mongoose.Schema(
   {
-    /* =========================
-       USER REFERENCE
-    ========================= */
+    /* ================= USER ================= */
 
     userId: {
       type: mongoose.Schema.Types.ObjectId,
@@ -25,9 +23,7 @@ const transactionSchema = new mongoose.Schema(
       index: true,
     },
 
-    /* =========================
-       TRANSACTION TYPE
-    ========================= */
+    /* ================= TYPE ================= */
 
     type: {
       type: String,
@@ -37,6 +33,7 @@ const transactionSchema = new mongoose.Schema(
         "SECURITY",
         "SECURITY_REFUND",
         "TRADE_LOCK",
+        "TRADE_RELEASE",
         "REFUND",
         "PROFIT_CREDIT",
         "TRADER_EARNING",
@@ -45,9 +42,7 @@ const transactionSchema = new mongoose.Schema(
       index: true,
     },
 
-    /* =========================
-       AMOUNT DETAILS
-    ========================= */
+    /* ================= AMOUNT ================= */
 
     amount: {
       type: Number,
@@ -60,13 +55,7 @@ const transactionSchema = new mongoose.Schema(
       default: "USDT",
     },
 
-    /* =========================
-       STATUS FLOW
-    =========================
-       PENDING  → admin action needed
-       SUCCESS  → money finalized
-       REJECTED → auto rollback
-    ========================= */
+    /* ================= STATUS ================= */
 
     status: {
       type: String,
@@ -75,11 +64,8 @@ const transactionSchema = new mongoose.Schema(
       index: true,
     },
 
-    /* =========================
-       OPTIONAL REFERENCES
-    ========================= */
+    /* ================= REFERENCES ================= */
 
-    // hireTrade reference (trade related tx)
     hireTradeId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "HireTrade",
@@ -87,17 +73,13 @@ const transactionSchema = new mongoose.Schema(
       index: true,
     },
 
-    /* =========================
-       PROOF / META
-    ========================= */
+    /* ================= PROOF / META ================= */
 
-    // deposit / security proof image (base64 or url)
     proofImage: {
       type: String,
       default: "",
     },
 
-    // withdraw address
     withdrawAddress: {
       type: String,
       default: "",
@@ -108,13 +90,11 @@ const transactionSchema = new mongoose.Schema(
       default: "",
     },
 
-    /* =========================
-       ADMIN ACTION META
-    ========================= */
+    /* ================= ADMIN REVIEW ================= */
 
     reviewedBy: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "User", // admin
+      ref: "User",
       default: null,
     },
 
@@ -128,9 +108,8 @@ const transactionSchema = new mongoose.Schema(
   }
 );
 
-/* =========================
-   INDEXES
-========================= */
+/* ================= INDEXES ================= */
+
 transactionSchema.index({ userId: 1, createdAt: -1 });
 transactionSchema.index({ type: 1, status: 1 });
 

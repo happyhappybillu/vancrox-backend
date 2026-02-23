@@ -15,6 +15,8 @@ exports.createNotification = async (req, res) => {
       title,
       message,
       image: image || "",
+      forRole: "investor",          // ✅ IMPORTANT FIX
+      isActive: true,
     });
 
     res.json({
@@ -23,7 +25,7 @@ exports.createNotification = async (req, res) => {
       notification,
     });
   } catch (err) {
-    console.error(err);
+    console.error("CreateNotification Error:", err);
     res.status(500).json({ message: "Server error" });
   }
 };
@@ -45,8 +47,13 @@ exports.updateNotification = async (req, res) => {
       return res.status(404).json({ message: "Notification not found" });
     }
 
-    res.json({ success: true, updated });
+    res.json({
+      success: true,
+      message: "Notification updated",
+      updated,
+    });
   } catch (err) {
+    console.error("UpdateNotification Error:", err);
     res.status(500).json({ message: "Server error" });
   }
 };
@@ -59,26 +66,38 @@ exports.deleteNotification = async (req, res) => {
     const { id } = req.params;
 
     const deleted = await Notification.findByIdAndDelete(id);
+
     if (!deleted) {
       return res.status(404).json({ message: "Notification not found" });
     }
 
-    res.json({ success: true, message: "Notification removed" });
+    res.json({
+      success: true,
+      message: "Notification removed",
+    });
   } catch (err) {
+    console.error("DeleteNotification Error:", err);
     res.status(500).json({ message: "Server error" });
   }
 };
 
 /* ======================================================
-   INVESTOR: GET ALL NOTIFICATIONS (PERMANENT)
+   INVESTOR: GET ALL ACTIVE NOTIFICATIONS
+   (Permanent until admin deletes)
 ====================================================== */
 exports.getInvestorNotifications = async (req, res) => {
   try {
-    const list = await Notification.find({ isActive: true })
-      .sort({ createdAt: -1 });
+    const list = await Notification.find({
+      forRole: "investor",          // ✅ ROLE SAFE FILTER
+      isActive: true,
+    }).sort({ createdAt: -1 });
 
-    res.json({ success: true, list });
+    res.json({
+      success: true,
+      list,
+    });
   } catch (err) {
+    console.error("GetInvestorNotifications Error:", err);
     res.status(500).json({ message: "Server error" });
   }
 };

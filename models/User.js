@@ -2,16 +2,14 @@ const mongoose = require("mongoose");
 
 /*
   USER ROLES:
-  - investor  → deposits & hires traders
-  - trader    → security money + ads + earnings
-  - admin     → system/control panel
+  - investor → deposits & hires traders
+  - trader   → security + ads + earnings
+  - admin    → system/control panel
 */
 
 const userSchema = new mongoose.Schema(
   {
-    /* =========================
-       BASIC IDENTITY
-    ========================= */
+    /* ================= BASIC ================= */
 
     role: {
       type: String,
@@ -49,9 +47,12 @@ const userSchema = new mongoose.Schema(
       select: false,
     },
 
-    /* =========================
-       SYSTEM IDS
-    ========================= */
+    profilePhoto: {
+      type: String,
+      default: "",
+    },
+
+    /* ================= SYSTEM IDS ================= */
 
     uid: {
       type: Number,
@@ -65,45 +66,25 @@ const userSchema = new mongoose.Schema(
       index: true,
     },
 
-    /* =========================
-       PROFILE
-    ========================= */
-
-    profilePhoto: {
-      type: String,
-      default: "",
-    },
-
-    /* =========================
-       INVESTOR RELATED
-    ========================= */
+    /* ================= INVESTOR ================= */
 
     balance: {
       type: Number,
-      default: function () {
-        return this.role === "investor" ? 0 : undefined;
-      },
+      default: 0,
       min: 0,
     },
 
-    /* =========================
-       TRADER RELATED (FIXED ✅)
-       👉 Only exists for TRADER
-    ========================= */
+    /* ================= TRADER ================= */
 
     securityMoney: {
       type: Number,
-      default: function () {
-        return this.role === "trader" ? 0 : undefined;
-      },
+      default: 0,
       min: 0,
     },
 
     traderLevel: {
       type: Number,
-      default: function () {
-        return this.role === "trader" ? 1 : undefined;
-      },
+      default: 1,
       min: 1,
       max: 10,
     },
@@ -111,30 +92,20 @@ const userSchema = new mongoose.Schema(
     traderVerificationStatus: {
       type: String,
       enum: ["NOT_SUBMITTED", "PENDING", "APPROVED", "REJECTED"],
-      default: function () {
-        return this.role === "trader"
-          ? "NOT_SUBMITTED"
-          : undefined;
-      },
+      default: "NOT_SUBMITTED",
     },
 
     traderHistoryFile: {
       type: String,
-      default: function () {
-        return this.role === "trader" ? "" : undefined;
-      },
+      default: "",
     },
 
     traderTotalEarning: {
       type: Number,
-      default: function () {
-        return this.role === "trader" ? 0 : undefined;
-      },
+      default: 0,
     },
 
-    /* =========================
-       ACCOUNT CONTROL
-    ========================= */
+    /* ================= CONTROL ================= */
 
     isBlocked: {
       type: Boolean,
@@ -147,9 +118,7 @@ const userSchema = new mongoose.Schema(
       default: "",
     },
 
-    /* =========================
-       SECURITY / META
-    ========================= */
+    /* ================= META ================= */
 
     lastLoginAt: {
       type: Date,
@@ -161,9 +130,7 @@ const userSchema = new mongoose.Schema(
   }
 );
 
-/* =========================
-   INDEXES
-========================= */
+/* ================= INDEXES ================= */
 userSchema.index({ role: 1, uid: 1 });
 userSchema.index({ role: 1, tid: 1 });
 

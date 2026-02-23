@@ -8,25 +8,27 @@ const { protect, requireRole } = require("../middleware/auth.middleware");
    INVESTOR / TRADER SUPPORT
 ====================================================== */
 
-// create ticket
+// Create support ticket
 router.post(
   "/create",
   protect,
+  requireRole("investor", "trader"),
   supportController.createTicket
 );
 
-// get my tickets (investor / trader)
+// Get my tickets
 router.get(
   "/my",
   protect,
+  requireRole("investor", "trader"),
   supportController.getMyTickets
 );
 
 /* ======================================================
-   ADMIN SUPPORT PANEL
+   SYSTEM TEAM PANEL (ADMIN)
 ====================================================== */
 
-// get all open tickets
+// Get all OPEN tickets
 router.get(
   "/admin/all",
   protect,
@@ -34,7 +36,7 @@ router.get(
   supportController.getAllTickets
 );
 
-// view single ticket
+// View single ticket
 router.get(
   "/admin/:id",
   protect,
@@ -42,7 +44,7 @@ router.get(
   supportController.viewTicket
 );
 
-// reply to ticket
+// Reply to ticket
 router.post(
   "/admin/reply/:id",
   protect,
@@ -50,7 +52,7 @@ router.post(
   supportController.replyTicket
 );
 
-// resolve ticket
+// Resolve ticket
 router.post(
   "/admin/resolve/:id",
   protect,

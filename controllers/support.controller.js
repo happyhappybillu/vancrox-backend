@@ -1,22 +1,22 @@
 const SupportTicket = require("../models/SupportTicket");
-const User = require("../models/User");
 
 /* ======================================================
-   CREATE SUPPORT TICKET (INVESTOR / TRADER)
+   CREATE TICKET (Investor / Trader)
 ====================================================== */
 exports.createTicket = async (req, res) => {
   try {
-    const { message } = req.body;
+    const { subject, message } = req.body;
 
     if (!message) {
-      return res.status(400).json({ message: "Message is required" });
+      return res.status(400).json({ message: "Message required" });
     }
 
     const ticket = await SupportTicket.create({
       userId: req.user._id,
-      uid: req.user.uid,
-      name: req.user.name,
-      role: req.user.role, // investor | trader
+      role: req.user.role,          // investor | trader
+      uid: req.user.uid || null,
+      tid: req.user.tid || null,
+      subject: subject || "Support Request",
       message,
       status: "OPEN",
       replies: [],
@@ -24,17 +24,17 @@ exports.createTicket = async (req, res) => {
 
     res.json({
       success: true,
-      message: "Support ticket created successfully",
+      message: "Ticket created",
       ticket,
     });
   } catch (err) {
-    console.error(err);
+    console.error("CreateTicket Error:", err);
     res.status(500).json({ message: "Server error" });
   }
 };
 
 /* ======================================================
-   GET MY TICKETS (INVESTOR / TRADER)
+   GET MY TICKETS (Investor / Trader)
 ====================================================== */
 exports.getMyTickets = async (req, res) => {
   try {
@@ -49,13 +49,13 @@ exports.getMyTickets = async (req, res) => {
 };
 
 /* ======================================================
-   ADMIN: GET ALL OPEN TICKETS
+   ADMIN / SYSTEM TEAM – GET ALL OPEN TICKETS
 ====================================================== */
 exports.getAllTickets = async (req, res) => {
   try {
-    const tickets = await SupportTicket.find({ status: "OPEN" }).sort({
-      createdAt: -1,
-    });
+    const tickets = await SupportTicket.find({ status: "OPEN" })
+      .populate("userId", "name email uid tid role")
+      .sort({ createdAt: -1 });
 
     res.json({ success: true, tickets });
   } catch (err) {
@@ -64,11 +64,12 @@ exports.getAllTickets = async (req, res) => {
 };
 
 /* ======================================================
-   ADMIN: VIEW SINGLE TICKET
+   VIEW SINGLE TICKET
 ====================================================== */
 exports.viewTicket = async (req, res) => {
   try {
-    const ticket = await SupportTicket.findById(req.params.id);
+    const ticket = await SupportTicket.findById(req.params.id)
+      .populate("userId", "name email uid tid role");
 
     if (!ticket) {
       return res.status(404).json({ message: "Ticket not found" });
@@ -81,15 +82,14 @@ exports.viewTicket = async (req, res) => {
 };
 
 /* ======================================================
-   ADMIN: REPLY TO TICKET
-   (admin name use nahi hota – restricted)
+   REPLY TO TICKET (System Team)
 ====================================================== */
 exports.replyTicket = async (req, res) => {
   try {
-    const { reply } = req.body;
+    const { message } = req.body;
 
-    if (!reply) {
-      return res.status(400).json({ message: "Reply is required" });
+    if (!message) {
+      return res.status(400).json({ message: "Reply message required" });
     }
 
     const ticket = await SupportTicket.findById(req.params.id);
@@ -98,26 +98,25 @@ exports.replyTicket = async (req, res) => {
     }
 
     ticket.replies.push({
-      sender: "ADMIN",
-      message: reply,
-      time: new Date(),
+      senderRole: "system",   // investor | trader | system
+      message,
+      createdAt: new Date(),
     });
 
     await ticket.save();
 
     res.json({
       success: true,
-      message: "Reply sent successfully",
-      ticket,
+      message: "Reply sent",
     });
   } catch (err) {
+    console.error("ReplyTicket Error:", err);
     res.status(500).json({ message: "Server error" });
   }
 };
 
 /* ======================================================
-   ADMIN: RESOLVE TICKET
-   (resolve hote hi investor/trader side se bhi hide)
+   RESOLVE TICKET
 ====================================================== */
 exports.resolveTicket = async (req, res) => {
   try {
@@ -128,11 +127,13 @@ exports.resolveTicket = async (req, res) => {
     }
 
     ticket.status = "RESOLVED";
+    ticket.resolvedAt = new Date();
+
     await ticket.save();
 
     res.json({
       success: true,
-      message: "Ticket resolved successfully",
+      message: "Ticket resolved",
     });
   } catch (err) {
     res.status(500).json({ message: "Server error" });
